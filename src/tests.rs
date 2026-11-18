@@ -3905,7 +3905,7 @@ fn github_requests_through_curl() {
     assert_eq!(a[0], "-q", "first, or ~/.curlrc is read");
     let has = |a: &[String], k: &str, v: &str| a.windows(2).any(|w| w[0] == k && w[1] == v);
     assert!(has(&a, "--proto", "=https") && has(&a, "--proto-redir", "=https") && a.iter().any(|x| x == "--location"));
-    assert!(has(&a, "--max-time", "10") && has(&a, "--max-filesize", "1048576") && has(&a, "--user-agent", "Maia"));
+    assert!(has(&a, "--max-time", "10") && has(&a, "--max-filesize", "1048576") && has(&a, "--user-agent", "Mochi"));
     assert!(!a.iter().any(|x| matches!(x.as_str(), "-u" | "--user" | "-n" | "--netrc" | "--netrc-optional" | "-b" | "--cookie" | "-K" | "--config")), "no credentials of any kind");
     assert!(!a.iter().any(|x| x.to_ascii_lowercase().contains("authorization")));
     assert_eq!(a.last().map(String::as_str), Some("https://avatars.githubusercontent.com/u/12345?s=96"));
@@ -14731,7 +14731,7 @@ fn same_named_tabs_tell_themselves_apart() {
 fn window_title_names_the_folder() {
     assert_eq!(crate::app::window_title("Invoices"), "Invoices · Mochi");
     assert_eq!(crate::app::window_title("Computer"), "Computer · Mochi");
-    assert_eq!(crate::app::window_title(""), "Maia");
+    assert_eq!(crate::app::window_title(""), "Mochi");
     assert_eq!(crate::app::window_title("a\0b"), "ab · Mochi", "no NUL for X11's title property");
     let d = tmpdir("wintitle");
     let mut app = crate::app::App::new(&egui::Context::default(), vec![d.clone()]);

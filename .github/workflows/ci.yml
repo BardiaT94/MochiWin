@@ -34,15 +34,22 @@ jobs:
             | sudo tee /usr/share/thumbnailers/ffmpeg-audio.thumbnailer >/dev/null
           # Ubuntu's ImageMagick 6 has no magick command; the app and tests call it so.
           if ! command -v magick; then
-            printf '#!/bin/sh\nexec convert "$@"\n' | sudo tee /usr/local/bin/magick >/dev/null
+            printf '#!/bin/sh\ncase "$1" in identify|mogrify|composite|compare|montage) t=$1; shift; exec "$t" "$@";; esac\nexec convert "$@"\n' | sudo tee /usr/local/bin/magick >/dev/null
             sudo chmod +x /usr/local/bin/magick
           fi
+          # Mochi's interface font, as a desktop with Mochi installed has it.
+          mkdir -p ~/.local/share/fonts && cp assets/fonts/*.ttf assets/fonts/*.otf ~/.local/share/fonts/ && fc-cache -f
           git config --global user.name CI
           git config --global user.email ci@example.invalid
       - name: Build
         run: |
           cargo build --locked
           cargo check --locked --features screen-reader
+      - name: Windows build
+        run: |
+          sudo apt-get install -y --no-install-recommends mingw-w64
+          rustup target add x86_64-pc-windows-gnu
+          cargo check --locked --target x86_64-pc-windows-gnu
       - name: Unit tests
         run: cargo test --locked --features testkit -- --skip "sim::"
       - name: Simulated users
