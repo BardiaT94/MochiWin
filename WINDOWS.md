@@ -86,7 +86,7 @@ The folder adds about 86 MB (78 MB of it is Mesa's driver).
 | Text size | Default 14 pt (Linux: 12), times Settings > Accessibility > Text size. Settings saved at the old 12 move to it once |
 | Browse folders | Yes; Storage lists each drive letter, named as Explorer does ("Local Disk (C:)") |
 | Search in subfolders, Expand | Yes; folders are told apart by volume serial and file index (`fsx::file_id`), as Unix uses device and inode |
-| Bookmarks | Maia's Bookmarks section in the sidebar (pinned folders), Windows only; Mochi on Linux has none |
+| Bookmarks | Maia's Bookmarks section in the sidebar (pinned folders), as on Linux |
 | Terminal pane | ConPTY with PowerShell 7 (`pwsh.exe`) when on PATH, else Windows PowerShell |
 | Copy, move, rename | Yes, through a buffered copy; "rename only if free" uses `MoveFileExW` |
 | Delete | Moves to Mochi's own trash folder, not the Recycle Bin yet |
