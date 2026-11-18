@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+<defs>
+<linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#313244"/>
+<stop offset="1" stop-color="#181825"/>
+</linearGradient>
+<linearGradient id="rim" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#ffffff" stop-opacity="0.16"/>
+<stop offset="0.45" stop-color="#ffffff" stop-opacity="0"/>
+</linearGradient>
+<linearGradient id="back" x1="0" y1="0" x2="1" y2="1">
+<stop offset="0" stop-color="#b4befe"/>
+<stop offset="1" stop-color="#9d7ff0"/>
+</linearGradient>
+<linearGradient id="front" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#f5c2e7"/>
+<stop offset="1" stop-color="#cba6f7"/>
+</linearGradient>
+<radialGradient id="glow" cx="64" cy="70" r="56" gradientUnits="userSpaceOnUse">
+<stop offset="0" stop-color="#cba6f7" stop-opacity="0.28"/>
+<stop offset="1" stop-color="#cba6f7" stop-opacity="0"/>
+</radialGradient>
+</defs>
+<rect x="6" y="6" width="116" height="116" rx="30" fill="url(#tile)"/>
+<rect x="6.5" y="6.5" width="115" height="115" rx="29.5" fill="none" stroke="url(#rim)"/>
+<circle cx="64" cy="70" r="56" fill="url(#glow)"/>
+<path d="M28 50 L34 24 Q35.5 19 39.5 22.5 L54 38 L74 38 L88.5 22.5 Q92.5 19 94 24 L100 50 Z" fill="url(#back)"/>
+<rect x="22" y="36" width="84" height="56" rx="14" fill="url(#back)"/>
+<rect x="17" y="52" width="94" height="52" rx="16" fill="url(#front)"/>
+<rect x="17" y="52" width="94" height="10" rx="5" fill="#ffffff" fill-opacity="0.18"/>
+<ellipse cx="38" cy="84" rx="7" ry="4" fill="#f38ba8" fill-opacity="0.45"/>
+<ellipse cx="90" cy="84" rx="7" ry="4" fill="#f38ba8" fill-opacity="0.45"/>
+<circle cx="49" cy="76" r="4.6" fill="#1e1e2e"/>
+<circle cx="79" cy="76" r="4.6" fill="#1e1e2e"/>
+<circle cx="50.4" cy="74.6" r="1.4" fill="#ffffff"/>
+<circle cx="80.4" cy="74.6" r="1.4" fill="#ffffff"/>
+<path d="M57 83 Q60.5 88 64 83 Q67.5 88 71 83" fill="none" stroke="#1e1e2e" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M101 14 Q102 21 109 22 Q102 23 101 30 Q100 23 93 22 Q100 21 101 14 Z" fill="#f9e2af"/>
+</svg>
