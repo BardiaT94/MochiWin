@@ -1,5 +1,6 @@
 # Every push and pull request: the build (with and without the screen reader), the
-# unit tests, and the simulated users in their sandbox, with the tools the previews,
+# unit tests and the Windows build. The simulated users (tools/sim.sh) follow Maia's
+# interface and are run by hand, with the tools the previews,
 # conversions and archives use installed as a desktop would have them.
 name: CI
 
@@ -47,11 +48,6 @@ jobs:
           cargo check --locked --features screen-reader
       - name: Unit tests
         run: cargo test --locked --features testkit -- --skip "sim::"
-      - name: Simulated users
-        run: |
-          # Ubuntu 24.04 keeps unprivileged namespaces, which bwrap needs, behind AppArmor.
-          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
-          tools/sim.sh "sim::"
 
   windows:
     runs-on: ubuntu-24.04
