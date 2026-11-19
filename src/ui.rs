@@ -50,13 +50,19 @@ pub fn search_row_in(ui: &mut Ui, text: &mut String, hint: &str, font: FontId, g
     }
     let row = row.shrink2(vec2(inset, 0.0));
     let field = Rect::from_min_max(pos2(row.left() + 24.0, row.top()), pos2(row.right() - if close { 26.0 } else { 4.0 }, row.bottom()));
+    // The hint is laid out as a label, the typed text by the field: at some sizes their
+    // baselines land a pixel apart, so the glyph follows whichever is shown.
+    let hinted = text.is_empty() && !hint.is_empty();
     let out = ui
         .scope_builder(UiBuilder::new().max_rect(field), |ui| {
             egui::TextEdit::singleline(text).hint_text(egui::RichText::new(hint).font(font.clone()).color(pal.text_dim)).font(font.clone()).frame(bare_edit()).vertical_align(egui::Align::Center).desired_width(field.width()).show(ui)
         })
         .inner;
-    let baseline = probe.rows.first().and_then(|r| r.glyphs.first().map(|g| r.pos.y + g.pos.y)).unwrap_or(font.size * 0.8);
-    let mid = out.galley_pos.y + baseline - font.size * 0.35;
+    let shown = if hinted { egui::WidgetText::from(egui::RichText::new("H").font(font.clone())).into_galley(ui, Some(egui::TextWrapMode::Extend), f32::INFINITY, font.clone()) } else { probe };
+    // Halfway up the drawn H itself: fonts differ in how tall their capitals are.
+    let ink_mid = shown.rows.first().and_then(|r| r.glyphs.first().filter(|g| g.uv_rect.size.y > 0.0).map(|g| r.pos.y + g.pos.y + g.uv_rect.offset.y + g.uv_rect.size.y / 2.0));
+    let baseline = shown.rows.first().and_then(|r| r.glyphs.first().map(|g| r.pos.y + g.pos.y)).unwrap_or(font.size * 0.8);
+    let mid = out.galley_pos.y + ink_mid.unwrap_or(baseline - font.size * 0.35);
     paint_glyph(ui.painter(), Rect::from_center_size(pos2(row.left() + 11.0, mid), Vec2::splat(glyph_side)), glyph, pal.text_dim);
     let mut closed = false;
     if close {
