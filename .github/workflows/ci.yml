@@ -22,6 +22,8 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
       - name: Tools
         run: |
+          # The runner rebuilds the man page index after every install: minutes, unused.
+          sudo rm -f /var/lib/man-db/auto-update
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends bubblewrap ffmpeg imagemagick exiv2 poppler-utils \
             p7zip-full zip libarchive-tools sqlite3 woff2 dbus libglib2.0-bin fontconfig ffmpegthumbnailer
@@ -43,11 +45,6 @@ jobs:
         run: |
           cargo build --locked
           cargo check --locked --features screen-reader
-      - name: Windows build
-        run: |
-          sudo apt-get install -y --no-install-recommends mingw-w64
-          rustup target add x86_64-pc-windows-gnu
-          cargo check --locked --target x86_64-pc-windows-gnu
       - name: Unit tests
         run: cargo test --locked --features testkit -- --skip "sim::"
       - name: Simulated users
@@ -55,3 +52,22 @@ jobs:
           # Ubuntu 24.04 keeps unprivileged namespaces, which bwrap needs, behind AppArmor.
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           tools/sim.sh "sim::"
+
+  windows:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-windows-cargo-${{ hashFiles('Cargo.lock') }}
+      - name: Windows build
+        run: |
+          sudo rm -f /var/lib/man-db/auto-update
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends gcc-mingw-w64-x86-64 binutils-mingw-w64-x86-64
+          rustup target add x86_64-pc-windows-gnu
+          cargo check --locked --target x86_64-pc-windows-gnu
