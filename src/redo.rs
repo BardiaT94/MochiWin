@@ -131,6 +131,14 @@ impl App {
                 crate::tags::start(self, crate::tags::Job::Restore(ch.clone(), false), crate::tags::Record::Redid(u.label.clone()));
                 return true;
             }
+            UndoKind::Looked(ch) => {
+                let (done, failed) = crate::folderlook::restore(ch, false);
+                self.toast(if failed > 0 { format!("Redid “{}”, but {failed} couldn't change", u.label) } else { format!("Redid “{}”", u.label) });
+                if !done.is_empty() {
+                    self.undo.push_redone(UndoEntry { label: u.label.clone(), kind: UndoKind::Looked(done) });
+                }
+                return true;
+            }
             UndoKind::Rename(pairs) => {
                 let plan: Vec<(PathBuf, String)> = pairs.iter().map(|(from, to)| (from.clone(), to.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default())).collect();
                 errs = crate::rename::apply(&plan).len();

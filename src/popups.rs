@@ -293,6 +293,8 @@ pub enum Popup {
     Projects(crate::projects::State),
     QuickOpen(Box<crate::quickopen::State>),
     UndoHistory(crate::undohist::State),
+    /// Mochi: a folder's colour and symbol.
+    FolderLook(crate::folderlook::State),
     Marks(crate::marks::State),
     Holders(Box<crate::holders::State>),
     SmartEdit(crate::smart::Edit),
@@ -561,6 +563,7 @@ impl Popup {
             Popup::Projects(..) => "Projects",
             Popup::QuickOpen(..) => "QuickOpen",
             Popup::UndoHistory(..) => "UndoHistory",
+            Popup::FolderLook(..) => "FolderLook",
             Popup::Marks(..) => "Marks",
             Popup::Holders(..) => "Holders",
             Popup::SmartEdit(..) => "SmartEdit",
@@ -1459,6 +1462,7 @@ pub fn draw(app: &mut App, ctx: &egui::Context) {
         Popup::Projects(st) => crate::projects::popup(app, ctx, st),
         Popup::QuickOpen(st) => crate::quickopen::popup(app, ctx, st),
         Popup::UndoHistory(st) => crate::undohist::popup(app, ctx, st),
+        Popup::FolderLook(st) => crate::folderlook::popup(app, ctx, st),
         Popup::Marks(st) => crate::marks::popup(app, ctx, st),
         Popup::Holders(st) => crate::holders::popup(app, ctx, st),
         Popup::SmartEdit(st) => crate::smart::popup(app, ctx, st),
@@ -2995,7 +2999,7 @@ fn update_control(ui: &mut Ui, app: &mut App, pal: &Palette) {
             if button(ui, "Check now", false).clicked() {
                 app.updater.check(&ctx);
             }
-            dim(ui, concat!("Mochi ", env!("CARGO_PKG_VERSION")));
+            dim(ui, &format!("Mochi {}", crate::mochi::version()));
         }
         State::Checking => {
             busy(ui, "Checking…");
@@ -6416,7 +6420,8 @@ fn quick_menu(app: &mut App, ctx: &egui::Context, panel: Option<(u64, Pos2)>) ->
         return false;
     }
     let anchor = match panel {
-        Some((_, a)) => pos2(a.x - 250.0, a.y + 4.0),
+        // Mochi: wider, for Undo and Redo to say what they do.
+        Some((_, a)) => pos2(a.x - 330.0, a.y + 4.0),
         None => {
             // Opens at the mouse pointer.
             let r = app.panels.get(&app.active).map(|p| p.rect).unwrap_or(ctx.content_rect());
@@ -6432,7 +6437,7 @@ fn quick_menu(app: &mut App, ctx: &egui::Context, panel: Option<(u64, Pos2)>) ->
         let keys = (!keys.is_empty()).then(|| keys.join("\t"));
         menu_check(ui, label, cmd_state(app, c).unwrap_or(false), keys.as_deref(), &app.pal)
     };
-    let (_, rect) = anchored(ctx, "quickmenu", anchor, 300.0, &pal, |ui| {
+    let (_, rect) = anchored(ctx, "quickmenu", anchor, 380.0, &pal, |ui| {
         if !quick.is_empty() {
             menu_heading(ui, "Quick", &pal);
             for c in &quick {
@@ -6442,6 +6447,47 @@ fn quick_menu(app: &mut App, ctx: &egui::Context, panel: Option<(u64, Pos2)>) ->
                 };
                 if clicked {
                     run = Some(*c);
+                }
+            }
+            menu_sep(ui, &pal);
+        }
+        // Mochi: a new version, once the quiet daily look found one.
+        {
+            use crate::update::State;
+            let v = |s: &str| s.trim_start_matches('v').to_string();
+            let row_label = match app.updater.state() {
+                State::Available(r) => Some((format!("Update to Mochi {}", v(&r.version)), true)),
+                State::Downloading(s) => Some((format!("Downloading Mochi {}…", v(&s)), false)),
+                State::Installing(s) => Some((format!("Installing Mochi {}…", v(&s)), false)),
+                State::Ready(s) => Some((format!("Restart to use Mochi {}", v(&s)), true)),
+                _ => None,
+            };
+            if let Some((label, live)) = row_label {
+                menu_heading(ui, "Update", &pal);
+                let clicked = menu_item(ui, &label, None, &pal);
+                if live && clicked {
+                    match app.updater.state() {
+                        State::Available(r) => app.updater.install(r, ui.ctx()),
+                        State::Ready(_) => app.updater.restart(ui.ctx()),
+                        _ => {}
+                    }
+                }
+                if !live {
+                    ui.ctx().request_repaint_after(std::time::Duration::from_millis(250));
+                }
+                menu_sep(ui, &pal);
+            }
+        }
+        // Mochi: what Undo and Redo would do, said in full.
+        let undo = app.undo.last().map(|u| format!("Undo {}", u.label.trim()));
+        let redo = app.undo.redos().last().map(|u| format!("Redo {}", u.label.trim()));
+        if undo.is_some() || redo.is_some() {
+            menu_heading(ui, "Edit", &pal);
+            for (c, label) in [(Cmd::Undo, undo), (Cmd::Redo, redo)] {
+                if let Some(l) = label {
+                    if undo_row(ui, app, c, &l) {
+                        run = Some(c);
+                    }
                 }
             }
             menu_sep(ui, &pal);
@@ -6464,6 +6510,11 @@ fn quick_menu(app: &mut App, ctx: &egui::Context, panel: Option<(u64, Pos2)>) ->
         if check(ui, app, Cmd::ToggleInspector, "Preview pane") {
             run = Some(Cmd::ToggleInspector);
         }
+        // Mochi (test): folder names on the folders, in the icon view.
+        if menu_check(ui, "Names on folders", app.cfg.names_on_folders, None, &pal) {
+            app.cfg.names_on_folders = !app.cfg.names_on_folders;
+            app.cfg_dirty = true;
+        }
         if menu_item(ui, "View and size…", Some("Ctrl+wheel".into()), &pal) {
             let p = panel.map_or(app.active, |(p, _)| p);
             let a = panel.map_or(anchor, |(_, a)| a);
@@ -6481,6 +6532,26 @@ fn quick_menu(app: &mut App, ctx: &egui::Context, panel: Option<(u64, Pos2)>) ->
         return false;
     }
     !clicked_outside(ctx, rect)
+}
+
+/// Mochi: an Undo or Redo row in the ⋮ menu: what it would do, cut to fit beside its
+/// key and said in full on hover.
+fn undo_row(ui: &mut Ui, app: &App, c: Cmd, label: &str) -> bool {
+    let pal = app.pal;
+    let key = app.keymap.bindings(c).first().map(commands::binding_to_string);
+    let mut cut = false;
+    let resp = row(ui, MENU_ROW, false, &pal, |ui, r| {
+        let mut x = r.right() - 6.0;
+        if let Some(k) = &key {
+            x -= crate::kit::hotkey(ui.painter(), pos2(x, r.center().y), k, &pal) + 5.0;
+        }
+        let room = (x - r.left() - MENU_TEXT_X - 8.0).max(24.0);
+        let g = crate::listing::elided(ui, label, FontId::proportional(MENU_FONT), room, pal.text);
+        cut = g.elided;
+        ui.painter().galley(pos2(r.left() + MENU_TEXT_X, r.center().y - g.size().y / 2.0), g, pal.text);
+    });
+    let resp = if cut { resp.on_hover_text(label) } else { resp };
+    resp.clicked()
 }
 
 /// Mochi: the sort button's menu: what to sort by, which way, folders first.
@@ -6896,7 +6967,7 @@ fn about(app: &mut App, ctx: &egui::Context) -> bool {
         ui.vertical_centered(|ui| {
             ui.add_space(6.0);
             ui.label(egui::RichText::new(crate::mochi::NAME).size(24.0).strong());
-            ui.label(egui::RichText::new(format!("Version {} · Maia {}", env!("CARGO_PKG_VERSION"), env!("CARGO_PKG_VERSION"))).color(pal.text_dim));
+            ui.label(egui::RichText::new(format!("Version {} · Maia {}", crate::mochi::version(), env!("CARGO_PKG_VERSION"))).color(pal.text_dim));
             ui.add_space(6.0);
             ui.label("Maia, the fast keyboard-first file manager, redesigned in Catppuccin.");
             ui.label(egui::RichText::new("Maia by yappologistic · GPL-3.0-or-later").small().color(pal.text_dim));

@@ -45,14 +45,26 @@ VIAddVersionKey "ProductVersion" "${VERSION}"
 
 Section "Mochi" SecMain
   SectionIn RO
-  ; A running Mochi keeps its files locked: ask for it to be closed first.
+  ; A running Mochi keeps its files locked: ask for it to be closed first. A quiet
+  ; install (Mochi's own update) waits up to 30 s for the Mochi that started it to close.
+  StrCpy $1 0
   running:
   IfFileExists "$INSTDIR\mochi.exe" 0 free
   ClearErrors
   FileOpen $0 "$INSTDIR\mochi.exe" a
-  IfErrors 0 +3
+  IfErrors 0 locked_done
+    IfSilent 0 ask
+      IntOp $1 $1 + 1
+      IntCmp $1 60 give_up wait give_up
+      wait:
+      Sleep 500
+      Goto running
+      give_up:
+      Abort
+    ask:
     MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "Mochi is running. Close it, then click Retry." IDRETRY running
     Abort
+  locked_done:
   FileClose $0
   free:
 
@@ -76,8 +88,20 @@ Section "Mochi" SecMain
 SectionEnd
 
 Section "Desktop shortcut" SecDesktop
+  ; An update (quiet) keeps the shortcut only if it is still there.
+  IfSilent 0 +2
+    IfFileExists "$DESKTOP\Mochi.lnk" 0 +2
   CreateShortcut "$DESKTOP\Mochi.lnk" "$INSTDIR\mochi.exe"
 SectionEnd
+
+; /RUN (Mochi's update): start the new version once its files are in place.
+Function .onInstSuccess
+  ${GetParameters} $0
+  ClearErrors
+  ${GetOptions} $0 "/RUN" $1
+  IfErrors +2
+    Exec '"$INSTDIR\mochi.exe"'
+FunctionEnd
 
 ; Only Mochi's own files go: a folder chosen by hand may hold other things. Settings in
 ; %APPDATA%\mochi stay, as with other apps.

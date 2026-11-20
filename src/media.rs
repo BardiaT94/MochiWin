@@ -18,7 +18,8 @@ pub fn have(tool: &str) -> bool {
     if let Some((_, v)) = c.iter().find(|(t, _)| t == tool) {
         return *v;
     }
-    let v = std::env::var_os("PATH").is_some_and(|p| std::env::split_paths(&p).any(|d| d.join(tool).is_file()));
+    // Windows: programs are found by their .exe name.
+    let v = std::env::var_os("PATH").is_some_and(|p| std::env::split_paths(&p).any(|d| d.join(tool).is_file() || (cfg!(windows) && d.join(format!("{tool}.exe")).is_file())));
     c.push((tool.to_string(), v));
     v
 }
@@ -31,6 +32,12 @@ pub(crate) fn tool(bin: &str) -> Command {
 /// `tool` for a command made elsewhere (a fake under test, through `drives::Tools`).
 pub(crate) fn tool_cmd(mut c: Command) -> Command {
     c.stdin(Stdio::null()).stderr(Stdio::null());
+    // Windows: a console tool started from the app gets no console window of its own.
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        c.creation_flags(0x0800_0000);
+    }
     #[cfg(target_os = "linux")]
     unsafe {
         use crate::compat::process::CommandExt;

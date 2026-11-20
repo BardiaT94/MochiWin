@@ -27,7 +27,7 @@ if [ -n "$MESA_7Z" ]; then
   rm -rf "$T"
 fi
 du -sh dist-win
-VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n 1)
+VERSION=$(cat MOCHI_VERSION)
 rm -f MochiSetup.exe
 if command -v makensis > /dev/null; then
   makensis -V2 -DVERSION="$VERSION" packaging/windows/mochi.nsi

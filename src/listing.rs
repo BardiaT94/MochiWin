@@ -448,7 +448,9 @@ fn folder_colour(e: &Entry) -> Option<Color32> {
 /// An item's icon: a labelled folder in its label's colour, else the icon theme's, else
 /// Maia's own.
 pub(crate) fn paint_entry_icon(p: &egui::Painter, r: Rect, e: &Entry, cat: theme::FileCat, ext: &str) {
-    if let Some(c) = folder_colour(e) {
+    // Mochi: a folder's own look comes first.
+    if crate::folderlook::paint(p, r, e) {
+    } else if let Some(c) = folder_colour(e) {
         theme::paint_folder(p, r, c);
         if e.is_link {
             theme::paint_link_badge(p, r);
@@ -1757,11 +1759,16 @@ fn grid(ui: &mut Ui, rect: Rect, t: &mut Tab, env: &mut Env, q: &fuzzy::Query, m
                             drew = true;
                         }
                     }
+                    // Mochi (test): the folder's name on its front, not under it.
+                    let on_face = env.cfg.names_on_folders && e.is_dir && s >= 64.0 && !editing && !tab::is_computer(&t.path);
+                    let mut face_cut = false;
                     if !drew {
                         t.item_rects.push((idx, icon_r));
                         if tab::is_computer(&t.path) {
                             art = icon_r.shrink(s * 0.15);
                             paint_drive(ui, art, t, &e, dimc(pal.text_dim));
+                        } else if on_face {
+                            face_cut = crate::folderlook::paint_named(ui, icon_r, &e, &display_name(&e, env.cfg), env.cfg.font_size, faded);
                         } else {
                             paint_entry_icon(ui.painter(), icon_r, &e, cat, &e.ext());
                         }
@@ -1783,7 +1790,18 @@ fn grid(ui: &mut Ui, rect: Rect, t: &mut Tab, env: &mut Env, q: &fuzzy::Query, m
                     let text_r = Rect::from_min_max(pos2(r.left() + 10.0, icon_r.bottom() + 9.0), pos2(r.right() - 10.0, r.bottom() - 6.0));
                     let name_font = FontId::proportional(font.size - 1.0);
                     let name_line = Rect::from_min_size(text_r.min, vec2(text_r.width(), font.size + 6.0));
-                    if !rename_field(ui, name_line, idx, t, env, &font) {
+                    if on_face {
+                        // The name is on the folder: only the quiet size line under it.
+                        let size = entry_size_text(&e, t, env);
+                        let (sub, _, _) = sel_colors(&pal, false);
+                        let quiet = if selected { sub } else { crate::mochi::mix(sub, pal.panel, 0.3) };
+                        if size != "--" {
+                            ui.painter().text(pos2(text_r.center().x, text_r.top()), Align2::CENTER_TOP, size, FontId::proportional(font.size - 3.5), quiet);
+                        }
+                        if face_cut {
+                            full_name_tip(ui, icon_r, &display_name(&e, env.cfg), &name_font, 0.0, (t.id, idx));
+                        }
+                    } else if !rename_field(ui, name_line, idx, t, env, &font) {
                         let rows = if s < 72.0 { 1 } else { 2 };
                         let (sub, acc, _) = sel_colors(&pal, false);
                         let mut job = name_job(ui, &display_name(&e, env.cfg), None, q, &name_font, dimc(if picked { crate::kit::on_lift(&pal) } else { pal.text }), sub, acc, text_r.width(), rows);

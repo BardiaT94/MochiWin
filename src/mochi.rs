@@ -422,6 +422,49 @@ pub static COMMANDS: std::sync::LazyLock<Vec<crate::commands::Cmd>> = std::sync:
 
 // ------------------------------------------------------------------ updating
 
+/// Mochi's own version (MOCHI_VERSION), apart from Maia's: what releases are numbered by.
+pub fn version() -> &'static str {
+    include_str!("../MOCHI_VERSION").trim()
+}
+
+/// Built from Bardia's FileManager folder (Maia clone + overlay): updates rebuild from
+/// there. A release build (MOCHI_RELEASE set) and every copy on another machine update
+/// from the GitHub releases instead.
+pub fn dev_setup() -> bool {
+    cfg!(unix) && option_env!("MOCHI_RELEASE").is_none() && overlay().join("mochi.sh").is_file()
+}
+
+/// A quiet look for a new version: once a day, half a minute after start, when
+/// `auto_update_check` is on. Nothing is said unless there is one (then the ⋮ menu
+/// offers it, and its button wears a dot).
+pub fn auto_check(app: &mut crate::app::App, ctx: &egui::Context) {
+    static DONE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    if cfg!(test) || !app.cfg.auto_update_check || DONE.load(std::sync::atomic::Ordering::Relaxed) {
+        return;
+    }
+    let t = ctx.input(|i| i.time);
+    if t < 30.0 {
+        ctx.request_repaint_after(std::time::Duration::from_secs_f64(30.5 - t));
+        return;
+    }
+    DONE.store(true, std::sync::atomic::Ordering::Relaxed);
+    let stamp = dirs::cache_dir().unwrap_or_else(std::env::temp_dir).join(DIR).join("last-update-check");
+    let fresh = std::fs::metadata(&stamp).and_then(|m| m.modified()).ok().and_then(|m| m.elapsed().ok()).is_some_and(|d| d < std::time::Duration::from_secs(20 * 3600));
+    if fresh || !matches!(app.updater.state(), State::Idle) {
+        return;
+    }
+    if let Some(d) = stamp.parent() {
+        let _ = std::fs::create_dir_all(d);
+    }
+    let _ = std::fs::write(&stamp, b"");
+    app.updater.check(ctx);
+}
+
+/// Whether the updater has something for the user to do (the ⋮ button's dot).
+pub fn update_news(app: &crate::app::App) -> bool {
+    matches!(app.updater.state(), State::Available(_) | State::Ready(_))
+}
+
 /// Where `mochi.sh` and the patch live: set by the build script, else beside the tree.
 fn overlay() -> PathBuf {
     match option_env!("MOCHI_OVERLAY") {
@@ -488,6 +531,9 @@ pub fn install(state: Arc<Mutex<State>>, version: String, ctx: egui::Context) {
 
 /// `mochi --update`, waited for.
 pub fn update_now() -> Result<String, String> {
+    if !dev_setup() {
+        return crate::update::update_now();
+    }
     match parse_check(&script("check")?) {
         State::Available(r) => {
             script("update")?;
@@ -600,4 +646,21 @@ pub fn visual(text: &str) -> std::borrow::Cow<'_, str> {
     let bidi = unicode_bidi::BidiInfo::new(&shaped, None);
     let out: String = bidi.paragraphs.iter().map(|p| bidi.reorder_line(p, p.range.clone()).into_owned()).collect();
     out.into()
+}
+
+// ------------------------------------------------------------------ older systems
+
+// glibc 2.43 gave `acosf` and `atan2f` new symbol versions, so a build made on a current
+// system asked for glibc 2.43 just for them. Mochi carries its own, through the f64 ones
+// every glibc has, and its releases run on glibc 2.35 like Maia's.
+#[cfg(all(target_os = "linux", not(test)))]
+#[unsafe(no_mangle)]
+pub extern "C" fn acosf(x: f32) -> f32 {
+    (x as f64).acos() as f32
+}
+
+#[cfg(all(target_os = "linux", not(test)))]
+#[unsafe(no_mangle)]
+pub extern "C" fn atan2f(y: f32, x: f32) -> f32 {
+    (y as f64).atan2(x as f64) as f32
 }

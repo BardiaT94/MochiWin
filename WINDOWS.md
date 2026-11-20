@@ -43,6 +43,23 @@ OpenGL driver. Without `MESA_7Z` the `software-gl` folder is left out.
 
 It is not code-signed, so SmartScreen warns on first run ("More info", then "Run anyway").
 
+A quiet install (`/S`) is how Mochi updates itself: it waits up to 30 seconds for the running
+Mochi to close instead of asking, keeps the desktop shortcut only if it is still there, and with
+`/RUN` starts Mochi again at the end.
+
+### Releases and updates
+
+`tools/win-release.sh X.Y.Z "notes"` writes `MOCHI_VERSION` (the same number as Linux Mochi;
+`build.rs` puts it in the exe), builds the installer, commits and tags as BardiaT94, pushes,
+and makes a GitHub release on BardiaT94/MochiWin with `MochiSetup.exe`, its `.sha256` and
+`mochi-windows.zip`. `MESA_7Z` and `NSIS_DIR` default to `FileManager/wintools/`.
+
+The app checks those releases once a day (as on Linux). When there is a newer one, the ⋮
+button gets a dot and the ⋮ menu offers "Update to Mochi X.Y.Z". That downloads
+`MochiSetup.exe` to `%LOCALAPPDATA%\maia\updates` (Maia's cache folder name), checks its SHA-256 with
+`certutil`, and "Restart to use" runs it with `/S /RUN` and closes Mochi. A copy unzipped
+from `mochi-windows.zip` is updated the same way, which installs it in the usual place.
+
 ### Software OpenGL fallback
 
 Mochi needs OpenGL 3. A PC without a GPU driver (a VM, Remote Desktop) only has OpenGL 1.1.
@@ -96,6 +113,8 @@ The folder adds about 86 MB (78 MB of it is Mesa's driver).
 | Open a terminal here | Windows Terminal, else PowerShell |
 | Dates | Local time through the C runtime, English day and month names |
 | Stop a running tool | `TerminateProcess` |
+| Folder looks (colour and symbol) | Kept in the folder's NTFS stream `Folder:mochi.look`; drives without streams (FAT, exFAT) say they can't keep one. Plain folders are drawn in the same art, in its blue |
+| Updates | From MochiWin's GitHub releases, through the installer (see "Releases and updates") |
 
 ## Switched off on Windows for now
 

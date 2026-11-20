@@ -3,12 +3,14 @@
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=assets/mochi.ico");
+    println!("cargo:rerun-if-changed=MOCHI_VERSION");
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("windows") {
         return;
     }
     let out = std::path::PathBuf::from(std::env::var("OUT_DIR").unwrap());
     let ico = std::path::Path::new(&std::env::var("CARGO_MANIFEST_DIR").unwrap()).join("assets/mochi.ico");
-    let v = std::env::var("CARGO_PKG_VERSION").unwrap();
+    // Mochi's own version, as the app and its releases say it.
+    let v = std::fs::read_to_string(std::path::Path::new(&std::env::var("CARGO_MANIFEST_DIR").unwrap()).join("MOCHI_VERSION")).unwrap_or_default().trim().to_string();
     let mut n: Vec<u32> = v.split(['.', '-']).filter_map(|p| p.parse().ok()).collect();
     n.resize(4, 0);
     let rc = format!(

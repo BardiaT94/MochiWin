@@ -37,6 +37,8 @@ pub enum Act {
     Preview(bool, u64),
     /// A tag in the sidebar: (what, the tag, panel to act in).
     TagPlace(TagAct, String, u64),
+    /// Mochi: choose these folders' colour and symbol.
+    FolderLook,
     None,
 }
 
@@ -447,6 +449,10 @@ pub fn build(app: &mut App, panel: u64, pos: Pos2, background: bool) -> Popup {
         }
         if !in_trash && ents.iter().any(|e| !app.shelf.has(&e.0)) {
             items.push(Item::labeled(Cmd::AddToShelf, "Add to Shelf"));
+        }
+        // Mochi: a folder's own colour and symbol.
+        if all_dirs && !in_trash {
+            items.push(Item { id: "folder_look".into(), label: "Folder Look…".into(), act: Act::FolderLook, children: vec![] });
         }
         items.push(Item::cmd(Cmd::Properties));
     }
@@ -860,6 +866,9 @@ pub fn draw(app: &mut App, ctx: &egui::Context, st: &mut CtxState) -> bool {
                                 crate::theme::paint_symbol(ui.painter(), ic.shrink(1.0), "code", if loud { pal.on_sel() } else { pal.text_dim });
                             }
                         }
+                        if let Act::FolderLook = &it.act {
+                            crate::folderlook::paint_look(ui.painter(), ic, &crate::folderlook::Look { colour: "Peach".into(), symbol: String::new() }, false);
+                        }
                         if let Act::Tag(name, _) = &it.act {
                             match crate::tags::color_of(name) {
                                 Some(c) => {
@@ -1025,6 +1034,12 @@ pub fn draw(app: &mut App, ctx: &egui::Context, st: &mut CtxState) -> bool {
                 let label = format!("{} {} {tag}", if on { "Untag" } else { "Tag" }, what_tagged(&paths));
                 let how = if on { crate::tags::How::Remove(tag) } else { crate::tags::How::Add(tag) };
                 crate::tags::start(app, crate::tags::Job::Edit(paths, how), crate::tags::Record::New(label));
+            }
+            Act::FolderLook => {
+                let paths: Vec<PathBuf> = st.targets.iter().filter(|p| p.is_dir()).cloned().collect();
+                if !paths.is_empty() {
+                    app.actions.push(Action::Open(crate::folderlook::open(paths)));
+                }
             }
             Act::NewTag => {
                 let paths = app.tab().targets();

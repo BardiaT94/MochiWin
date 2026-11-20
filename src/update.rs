@@ -11,17 +11,26 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 /// Where the releases are.
-pub const REPO: &str = "yappologistic/Maia";
+#[cfg(not(windows))]
+pub const REPO: &str = "BardiaT94/Mochi";
+/// Windows: MochiWin's releases, whose installer updates every file of the app.
+#[cfg(windows)]
+pub const REPO: &str = "BardiaT94/MochiWin";
 /// A release's files for this machine's processor: the program, and its SHA-256 as
-/// `sha256sum` writes it ("maia-linux-x86_64", "maia-linux-aarch64").
-#[cfg(target_arch = "aarch64")]
-pub const ASSET: &str = "maia-linux-aarch64";
-#[cfg(not(target_arch = "aarch64"))]
-pub const ASSET: &str = "maia-linux-x86_64";
-#[cfg(target_arch = "aarch64")]
-pub const SUMS: &str = "maia-linux-aarch64.sha256";
-#[cfg(not(target_arch = "aarch64"))]
-pub const SUMS: &str = "maia-linux-x86_64.sha256";
+/// `sha256sum` writes it ("mochi-linux-x86_64", "mochi-linux-aarch64"); on Windows the
+/// installer and its SHA-256.
+#[cfg(all(not(windows), target_arch = "aarch64"))]
+pub const ASSET: &str = "mochi-linux-aarch64";
+#[cfg(all(not(windows), not(target_arch = "aarch64")))]
+pub const ASSET: &str = "mochi-linux-x86_64";
+#[cfg(all(not(windows), target_arch = "aarch64"))]
+pub const SUMS: &str = "mochi-linux-aarch64.sha256";
+#[cfg(all(not(windows), not(target_arch = "aarch64")))]
+pub const SUMS: &str = "mochi-linux-x86_64.sha256";
+#[cfg(windows)]
+pub const ASSET: &str = "MochiSetup.exe";
+#[cfg(windows)]
+pub const SUMS: &str = "MochiSetup.exe.sha256";
 /// This machine's processor as the packages name it.
 #[cfg(target_arch = "aarch64")]
 const ARCH: &str = "aarch64";
@@ -163,6 +172,12 @@ pub fn version(v: &str) -> Option<(u64, u64, u64)> {
     n.next().is_none().then_some((major, minor, patch))
 }
 
+/// The version releases are compared with: Mochi's own (Maia's in tests, whose releases
+/// they fake).
+fn current() -> &'static str {
+    if cfg!(test) { env!("CARGO_PKG_VERSION") } else { crate::mochi::version() }
+}
+
 /// Whether `candidate` is a later version than `current`.
 pub fn newer(current: &str, candidate: &str) -> bool {
     matches!((version(current), version(candidate)), (Some(a), Some(b)) if b > a)
@@ -237,7 +252,7 @@ fn runs(path: &Path, version: &str) -> bool {
     let mut c = std::process::Command::new(path);
     // An AppImage unpacked rather than mounted, so a system without FUSE can try it too.
     c.arg("--version").env("APPIMAGE_EXTRACT_AND_RUN", "1");
-    crate::media::output(c, Duration::from_secs(10)).is_some_and(|out| String::from_utf8_lossy(&out).trim() == format!("maia {}", version.trim_start_matches(['v', 'V'])))
+    crate::media::output(c, Duration::from_secs(10)).is_some_and(|out| String::from_utf8_lossy(&out).trim().starts_with(&format!("mochi {} ", version.trim_start_matches(['v', 'V']))))
 }
 
 /// Test builds' stand-in programs aren't real ones.
@@ -246,7 +261,18 @@ fn runs(_: &Path, _: &str) -> bool {
     true
 }
 
+/// SHA-256 of a file, by certutil (every Windows has it).
+#[cfg(windows)]
+fn sha256(path: &Path) -> Option<String> {
+    let mut c = crate::media::tool("certutil");
+    c.arg("-hashfile").arg(path).arg("SHA256");
+    let out = String::from_utf8_lossy(&crate::media::output(c, Duration::from_secs(60))?).into_owned();
+    // Its second line is the hash (older Windows put spaces between the bytes).
+    out.lines().map(|l| l.replace(' ', "")).find(|l| l.len() == 64 && l.bytes().all(|b| b.is_ascii_hexdigit())).map(|h| h.to_ascii_lowercase())
+}
+
 /// SHA-256 of a file, by coreutils' sha256sum.
+#[cfg(not(windows))]
 fn sha256(path: &Path) -> Option<String> {
     let mut c = crate::media::tool("sha256sum");
     c.arg(path);
@@ -293,8 +319,9 @@ impl Updater {
         if self.busy() {
             return;
         }
-        // Mochi: Maia's releases would drop the redesign; rebuild from the upstream clone.
-        if cfg!(not(test)) {
+        // Mochi: on Bardia's machine, rebuild from the upstream clone; anywhere else,
+        // Mochi's own releases.
+        if cfg!(not(test)) && crate::mochi::dev_setup() {
             return crate::mochi::check(self.state.clone(), ctx.clone());
         }
         *self.state.lock().unwrap_or_else(|e| e.into_inner()) = State::Checking;
@@ -303,7 +330,7 @@ impl Updater {
             let url = format!("https://api.github.com/repos/{REPO}/releases/latest");
             let next = match fetch(&url, None) {
                 Ok(body) => match parse_release(&body) {
-                    Some(r) if newer(env!("CARGO_PKG_VERSION"), &r.version) => State::Available(r),
+                    Some(r) if newer(current(), &r.version) => State::Available(r),
                     Some(_) => State::Latest,
                     None => State::Failed("The latest release has no build for this system".into()),
                 },
@@ -319,8 +346,12 @@ impl Updater {
         if self.busy() {
             return;
         }
-        if cfg!(not(test)) {
+        if cfg!(not(test)) && crate::mochi::dev_setup() {
             return crate::mochi::install(self.state.clone(), r.version, ctx.clone());
+        }
+        #[cfg(windows)]
+        if cfg!(not(test)) {
+            return win::download(self.state.clone(), self.fetch.clone(), r, ctx.clone());
         }
         *self.state.lock().unwrap_or_else(|e| e.into_inner()) = State::Downloading(r.version.clone());
         // The tools are this thread's (a simulation's fakes are set per thread).
@@ -346,6 +377,15 @@ impl Updater {
 
     /// Start the new version in a moment and close this one (its window, and so the app).
     pub fn restart(&self, ctx: &egui::Context) {
+        // Windows: the installer, quiet, waits for this window to close, puts every file in
+        // place and starts the new version.
+        #[cfg(windows)]
+        if cfg!(not(test)) {
+            if win::run_setup(&["/S", "/RUN"]) {
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            }
+            return;
+        }
         // An AppImage's program is on a mount that goes away with this process.
         let exe = self.appimage.clone().unwrap_or_else(|| self.exe.clone());
         let mut c = std::process::Command::new("setsid");
@@ -374,10 +414,23 @@ impl Updater {
 /// went.
 pub fn update_now() -> Result<String, String> {
     let fetch: Fetch = Arc::new(curl);
+    #[cfg(windows)]
+    {
+        let body = fetch(&format!("https://api.github.com/repos/{REPO}/releases/latest"), None)?;
+        let r = parse_release(&body).ok_or("The latest release has no installer")?;
+        let current = current();
+        if !newer(current, &r.version) {
+            return Ok(format!("Mochi {current} is the latest"));
+        }
+        win::fetch_setup(&r, &fetch)?;
+        return if win::run_setup(&["/S"]) { Ok(format!("Installing Mochi {}", r.version.trim_start_matches('v'))) } else { Err("Couldn't start the installer".into()) };
+    }
+    #[allow(unreachable_code)]
+    {
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
     let body = fetch(&format!("https://api.github.com/repos/{REPO}/releases/latest"), None)?;
     let r = parse_release(&body).ok_or("The latest release has no build for this system")?;
-    let current = env!("CARGO_PKG_VERSION");
+    let current = current();
     if !newer(current, &r.version) {
         return Ok(format!("Mochi {current} is the latest"));
     }
@@ -388,6 +441,53 @@ pub fn update_now() -> Result<String, String> {
     }
     apply(&r, &how, &exe, &work_dir(), &fetch, tools.as_ref(), &|| {})?;
     Ok(format!("Updated Mochi {current} to {}; start it again to use it", r.version.trim_start_matches('v')))
+    }
+}
+
+/// Windows: updates come as the release's installer, checked against its SHA-256 and run
+/// quietly once the user restarts.
+#[cfg(windows)]
+mod win {
+    use super::*;
+
+    /// Where the downloaded installer waits.
+    pub fn setup_path() -> PathBuf {
+        work_dir().join("MochiSetup.exe")
+    }
+
+    /// The installer of release `r`, downloaded and checked.
+    pub fn fetch_setup(r: &Release, fetch: &Fetch) -> Result<(), String> {
+        let want = fetch_sum(&r.sum, fetch)?;
+        let to = setup_path();
+        std::fs::create_dir_all(work_dir()).map_err(|e| e.to_string())?;
+        let _ = std::fs::remove_file(&to);
+        fetch(&r.bin, Some(&to))?;
+        let head = std::fs::read(&to).map_err(|e| e.to_string())?;
+        if !head.starts_with(b"MZ") || sha256(&to).as_deref() != Some(want.as_str()) {
+            let _ = std::fs::remove_file(&to);
+            return Err("The download doesn't match the release's checksum".into());
+        }
+        Ok(())
+    }
+
+    pub fn download(state: Arc<Mutex<State>>, fetch: Fetch, r: Release, ctx: egui::Context) {
+        *state.lock().unwrap_or_else(|e| e.into_inner()) = State::Downloading(r.version.clone());
+        std::thread::spawn(move || {
+            let next = match fetch_setup(&r, &fetch) {
+                Ok(()) => State::Ready(r.version.clone()),
+                Err(e) => State::Failed(e),
+            };
+            *state.lock().unwrap_or_else(|e| e.into_inner()) = next;
+            ctx.request_repaint();
+        });
+    }
+
+    /// Start the downloaded installer with `args`, apart from this process.
+    pub fn run_setup(args: &[&str]) -> bool {
+        use std::os::windows::process::CommandExt;
+        const DETACHED_PROCESS: u32 = 0x0000_0008;
+        std::process::Command::new(setup_path()).args(args).creation_flags(DETACHED_PROCESS).spawn().is_ok()
+    }
 }
 
 /// Put release `r` in place for an install of kind `how`. `installing` is told when the

@@ -156,6 +156,10 @@ pub struct Config {
     pub accent: String,
     /// Mochi: the preview's share of its panel, as last dragged.
     pub preview_ratio: f32,
+    /// Mochi (test): in the icon view, a folder's name on its front.
+    pub names_on_folders: bool,
+    /// Mochi: look for a new version once a day, quietly (the ⋮ menu offers it).
+    pub auto_update_check: bool,
     pub follow_system_theme: bool,
     /// Highlighted code in the theme's own colours (else the same set for every theme).
     pub syntax_theme: bool,
@@ -259,6 +263,8 @@ impl Default for Config {
             theme: ThemeName::Mocha,
             accent: crate::mochi::DEFAULT_ACCENT.into(),
             preview_ratio: 0.18,
+            names_on_folders: false,
+            auto_update_check: true,
             follow_system_theme: false,
             syntax_theme: true,
             round_corners: true,

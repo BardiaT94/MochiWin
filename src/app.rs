@@ -197,6 +197,7 @@ impl UndoKind {
             UndoKind::Created(v) | UndoKind::Trashed(v) | UndoKind::Replaced(v) => v.len(),
             UndoKind::Synced(made, _, removed) => made.len() + removed.len(),
             UndoKind::Tagged(v) => v.len(),
+            UndoKind::Looked(v) => v.len(),
         }
     }
 }
@@ -221,6 +222,8 @@ pub enum UndoKind {
     Synced(Vec<PathBuf>, Vec<PathBuf>, Vec<PathBuf>),
     /// Files' tags changed: each one's before and after.
     Tagged(Vec<crate::tags::Change>),
+    /// Mochi: folders' looks changed: each one's before and after.
+    Looked(Vec<crate::folderlook::Change>),
 }
 
 pub struct App {
@@ -1561,6 +1564,7 @@ impl App {
         // Tags asked for by last frame's rows go to the reader; when some land, a tag:
         // filter looks again.
         crate::tags::flush(ctx);
+        crate::mochi::auto_check(self, ctx);
         let tg = crate::tags::generation();
         if tg != self.tags_gen {
             self.tags_gen = tg;
@@ -3877,6 +3881,14 @@ impl App {
             UndoKind::Tagged(ch) => {
                 self.toast(format!("Undid “{}”", u.label));
                 crate::tags::start(self, crate::tags::Job::Restore(ch.clone(), true), crate::tags::Record::Undid(u.label.clone()));
+                return true;
+            }
+            UndoKind::Looked(ch) => {
+                let (back, failed) = crate::folderlook::restore(ch, true);
+                self.toast(if failed > 0 { format!("Undid “{}”, but {failed} couldn't change", u.label) } else { format!("Undid “{}”", u.label) });
+                if !back.is_empty() {
+                    self.undo.push_undone(UndoEntry { label: u.label.clone(), kind: UndoKind::Looked(back) });
+                }
                 return true;
             }
             UndoKind::Rename(pairs) => {

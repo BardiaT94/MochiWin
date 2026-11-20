@@ -755,6 +755,15 @@ pub fn toggle(app: &mut App) {
     }
 }
 
+/// Mochi: the toolbar's terminal button: the pane opens, or closes when open.
+pub fn button(app: &mut App) {
+    if app.terminal.shells.is_empty() {
+        new_shell(app);
+    } else {
+        close(app);
+    }
+}
+
 /// Another shell, in the folder the active panel shows, shown after the one that was.
 pub fn new_shell(app: &mut App) {
     let t = app.panel().tab();

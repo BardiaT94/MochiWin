@@ -1265,9 +1265,10 @@ impl App {
             let resp = tonal_button(ui, r, Id::new(("term", id)), "toolbar button", true, term_open, &pal, |p, r, c| {
                 crate::theme::paint_symbol(p, r, "square-terminal", c);
             });
-            if cmd_tip(resp, Some(if term_open { "Hide the terminal".into() } else { "Terminal here, under the files".into() }), Cmd::TerminalPanel, &self.keymap, &pal).clicked() {
+            if cmd_tip(resp, Some(if term_open { "Close the terminal".into() } else { "Terminal here, under the files".into() }), Cmd::TerminalPanel, &self.keymap, &pal).clicked() {
+                // Mochi: the button opens and closes the pane (Ctrl+` still toggles focus first).
                 self.actions.push(Action::FocusPanel(id));
-                cmd = Some(Cmd::TerminalPanel);
+                crate::terminal::button(self);
             }
             x += b + gap;
         }
@@ -1311,7 +1312,12 @@ impl App {
                     p.circle_filled(r.center() + vec2(0.0, dy), 1.7, c);
                 }
             });
-            if resp.on_hover_text("More").clicked() {
+            // Mochi: a new version waiting wears a dot.
+            let news = crate::mochi::update_news(self);
+            if news {
+                ui.painter().circle_filled(menu_r.right_top() + vec2(-6.0, 6.0), 4.0, pal.accent);
+            }
+            if resp.on_hover_text(if news { "More · a new version of Mochi" } else { "More" }).clicked() {
                 self.actions.push(Action::FocusPanel(id));
                 self.popup = Popup::panel_menu(id, menu_r.right_bottom());
             }
