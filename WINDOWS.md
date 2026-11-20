@@ -50,10 +50,17 @@ Mochi to close instead of asking, keeps the desktop shortcut only if it is still
 ### Releases and updates
 
 `tools/win-release.sh X.Y.Z "notes"` writes `MOCHI_VERSION` (the same number as Linux Mochi;
-`build.rs` puts it in the exe), builds the installer, commits and tags as BardiaT94, pushes,
-and makes a GitHub release on BardiaT94/MochiWin with `MochiSetup.exe`, its `.sha256` and
-`mochi-windows.zip`, then sends the version to winget (`tools/winget.sh`: a pull request on
-microsoft/winget-pkgs from BardiaT94's fork). `MESA_7Z` and `NSIS_DIR` default to `FileManager/wintools/`.
+`build.rs` puts it in the exe), commits and tags as BardiaT94 with the notes as the tag's
+message, and pushes. GitHub Actions (`.github/workflows/release.yml`) builds on Ubuntu with
+mingw and Ubuntu's NSIS, downloads Mesa, signs `mochi.exe` and then `MochiSetup.exe` through
+SignPath (only once the repository variable `SIGNPATH_ORGANIZATION_ID` and secret
+`SIGNPATH_API_TOKEN` exist; SignPath project `MochiWin`, policy `release-signing`, artifact
+configurations `exe` and `installer`), and makes the release with `MochiSetup.exe`, its
+`.sha256` and `mochi-windows.zip`. The script waits for that run, then sends the version to
+winget (`tools/winget.sh`: a pull request on microsoft/winget-pkgs from BardiaT94's fork).
+Started by hand (Actions, "Run workflow"), the workflow only builds and keeps the files as
+artifacts. `tools/win-build.sh` still builds locally (`MESA_7Z`, `NSIS_DIR` in
+`FileManager/wintools/`).
 
 The app checks those releases once a day (as on Linux). When there is a newer one, the ⋮
 button gets a dot and the ⋮ menu offers "Update to Mochi X.Y.Z". That downloads

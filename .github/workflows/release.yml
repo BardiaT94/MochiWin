@@ -1,0 +1,133 @@
+# A Windows release, built here rather than on a personal PC (SignPath signs only builds
+# made by this workflow). A pushed tag vX.Y.Z (tools/win-release.sh makes it) builds
+# mochi.exe, signs it, packs MochiSetup.exe and mochi-windows.zip, signs the installer, and
+# makes the GitHub release, its notes from the tag's message. Started by hand, it only
+# builds and keeps the files as the run's artifacts.
+#
+# Signing runs once SignPath has accepted the project: the repository variable
+# SIGNPATH_ORGANIZATION_ID and the secret SIGNPATH_API_TOKEN switch it on. Without them
+# the files are released unsigned, as before.
+name: Windows release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+env:
+  MESA: "26.2.6"
+  SIGNING: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Tools
+        run: |
+          sudo rm -f /var/lib/man-db/auto-update
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends gcc-mingw-w64-x86-64 binutils-mingw-w64-x86-64 nsis p7zip-full
+          rustup target add x86_64-pc-windows-gnu
+          curl -sfLo mesa.7z "https://github.com/pal1000/mesa-dist-win/releases/download/$MESA/mesa3d-$MESA-release-mingw.7z"
+      - name: Version
+        run: |
+          v=$(cat MOCHI_VERSION)
+          if [ "$GITHUB_REF_TYPE" = tag ] && [ "$GITHUB_REF_NAME" != "v$v" ]; then
+            echo "tag $GITHUB_REF_NAME but MOCHI_VERSION says $v"; exit 1
+          fi
+          echo "VERSION=$v" >> "$GITHUB_ENV"
+
+      # The program, built once; the installer is made after it is signed.
+      - name: Build
+        run: |
+          cargo build --locked --release --target x86_64-pc-windows-gnu
+          mkdir -p unsigned
+          cp target/x86_64-pc-windows-gnu/release/maia.exe unsigned/mochi.exe
+      - name: Upload the program for signing
+        id: exe
+        if: env.SIGNING == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: mochi-exe-unsigned
+          path: unsigned/mochi.exe
+      - name: Sign the program
+        if: env.SIGNING == 'true'
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: MochiWin
+          signing-policy-slug: release-signing
+          artifact-configuration-slug: exe
+          github-artifact-id: ${{ steps.exe.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: signed
+      - name: Pack
+        run: |
+          exe=unsigned/mochi.exe
+          if [ -f signed/mochi.exe ]; then exe=signed/mochi.exe; fi
+          rm -rf dist-win && mkdir -p dist-win/software-gl
+          cp "$exe" dist-win/mochi.exe
+          cp "$exe" dist-win/software-gl/mochi.exe
+          cp assets/fonts/OFL.txt dist-win/FONTS-LICENSE.txt
+          7z x -otmp-mesa mesa.7z x64/opengl32.dll x64/libgallium_wgl.dll > /dev/null
+          cp tmp-mesa/x64/opengl32.dll tmp-mesa/x64/libgallium_wgl.dll dist-win/software-gl/
+          cp tools/MESA-LICENSE.txt dist-win/software-gl/
+          makensis -V2 -DVERSION="$VERSION" packaging/windows/mochi.nsi
+          mkdir -p out
+          mv MochiSetup.exe out/
+      - name: Upload the installer for signing
+        id: setup
+        if: env.SIGNING == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: mochi-setup-unsigned
+          path: out/MochiSetup.exe
+      - name: Sign the installer
+        if: env.SIGNING == 'true'
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: MochiWin
+          signing-policy-slug: release-signing
+          artifact-configuration-slug: installer
+          github-artifact-id: ${{ steps.setup.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: signed-setup
+      - name: Files
+        run: |
+          if [ -f signed-setup/MochiSetup.exe ]; then cp signed-setup/MochiSetup.exe out/MochiSetup.exe; fi
+          cd out
+          sha256sum MochiSetup.exe > MochiSetup.exe.sha256
+          cp -r ../dist-win Mochi
+          7z a -tzip -bd -bso0 mochi-windows.zip Mochi
+          rm -rf Mochi
+          ls -l
+      - name: Keep the files (test build)
+        if: github.ref_type != 'tag'
+        uses: actions/upload-artifact@v4
+        with:
+          name: mochi-windows-${{ env.VERSION }}
+          path: out/
+      - name: Release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          notes=$(git tag -l --format='%(contents)' "$GITHUB_REF_NAME")
+          if [ "$SIGNING" = true ]; then
+            warn='Signed by SignPath Foundation.'
+          else
+            warn='Windows may say "Windows protected your PC" because the installer is not signed yet: click **More info**, then **Run anyway**.'
+          fi
+          body=$(printf '%s\n\n---\n\n**Install:** download `MochiSetup.exe` and run it (no admin rights needed). %s\n\nNo installer: `mochi-windows.zip` holds the same program; unzip it and run `mochi.exe`.\n\nAfter installing, Mochi looks for new versions once a day and offers them in its ⋮ menu.\n' "$notes" "$warn")
+          gh release create "$GITHUB_REF_NAME" --title "Mochi $VERSION for Windows" --notes "$body" \
+            out/MochiSetup.exe out/MochiSetup.exe.sha256 out/mochi-windows.zip

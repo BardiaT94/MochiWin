@@ -1,35 +1,28 @@
 #!/bin/sh
 # A new Windows version: tools/win-release.sh X.Y.Z ["notes"]
-# Writes MOCHI_VERSION, builds dist-win/ and MochiSetup.exe (tools/win-build.sh), commits
-# and tags as BardiaT94, pushes, and makes a GitHub release on BardiaT94/MochiWin with
-# MochiSetup.exe, its .sha256 and mochi-windows.zip. Every installed Mochi on Windows finds
-# it within a day and offers it in its ⋮ menu (it runs the installer quietly).
-# Then the winget pull request (tools/winget.sh). MESA_7Z and NSIS_DIR default to
-# FileManager/wintools/.
+# Writes MOCHI_VERSION, commits and tags vX.Y.Z as BardiaT94 (the notes are the tag's
+# message) and pushes. GitHub Actions (.github/workflows/release.yml) then builds, signs once
+# SignPath is set up, and makes the release with MochiSetup.exe, its .sha256 and
+# mochi-windows.zip; this script waits for that run, then offers the version to winget
+# (tools/winget.sh). Every installed Mochi on Windows finds the release within a day.
+# A local build without releasing: tools/win-build.sh.
 set -e
 C=$(dirname "$(dirname "$(readlink -f "$0")")")
 cd "$C"
 v=${1:-}; notes=${2:-}
 echo "$v" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || { echo 'usage: tools/win-release.sh X.Y.Z ["notes"]' >&2; exit 1; }
 git rev-parse -q --verify "refs/tags/v$v" > /dev/null && { echo "v$v is already released" >&2; exit 1; }
-: "${MESA_7Z:=$C/../wintools/mesa3d-26.2.6-release-mingw.7z}"
-: "${NSIS_DIR:=$C/../wintools/nsis-3.10}"
-export MESA_7Z NSIS_DIR
+GH_TOKEN=$(gh auth token -u BardiaT94); export GH_TOKEN
+id() { git -c user.name=BardiaT94 -c user.email=BardiaT94@users.noreply.github.com "$@"; }
 printf '%s\n' "$v" > MOCHI_VERSION
-tools/win-build.sh
-[ -f MochiSetup.exe ] || { echo "no MochiSetup.exe: is NSIS_DIR right?" >&2; exit 1; }
-sha256sum MochiSetup.exe > MochiSetup.exe.sha256
-rm -f mochi-windows.zip
-T=$(mktemp -d)
-cp -r dist-win "$T/Mochi"
-(cd "$T" && 7z a -tzip -bd -bso0 "$C/mochi-windows.zip" Mochi)
-rm -rf "$T"
 git add -A
-git diff --cached --quiet || git -c user.name=BardiaT94 -c user.email=BardiaT94@users.noreply.github.com commit -q -m "Mochi $v"
-git -c user.name=BardiaT94 -c user.email=BardiaT94@users.noreply.github.com tag -a "v$v" -m "Mochi $v"
+git diff --cached --quiet || id commit -q -m "Mochi $v"
+id tag -a "v$v" -m "${notes:-Mochi $v}"
 git push -q origin HEAD "v$v"
-body=$(printf '%s\n\n---\n\n**Install:** download `MochiSetup.exe` and run it (no admin rights needed). Windows may say "Windows protected your PC" because the installer is not signed yet: click **More info**, then **Run anyway**.\n\nNo installer: `mochi-windows.zip` holds the same program; unzip it and run `mochi.exe`.\n\nAfter installing, Mochi looks for new versions once a day and offers them in its ⋮ menu.\n' "${notes:-Mochi $v}")
-GH_TOKEN=$(gh auth token -u BardiaT94) gh release create "v$v" -R BardiaT94/MochiWin --title "Mochi $v for Windows" \
-  --notes "$body" MochiSetup.exe MochiSetup.exe.sha256 mochi-windows.zip
-# And to winget (a pull request on microsoft/winget-pkgs; it goes live once merged).
+echo "pushed v$v; waiting for the release build on GitHub"
+sleep 10
+run=$(gh run list -R BardiaT94/MochiWin --workflow release.yml --branch "v$v" --limit 1 --json databaseId --jq '.[0].databaseId')
+[ -n "$run" ] || { echo "no release run found for v$v" >&2; exit 1; }
+gh run watch "$run" -R BardiaT94/MochiWin --exit-status --interval 30 > /dev/null || { echo "the release build failed: gh run view $run -R BardiaT94/MochiWin --log-failed" >&2; exit 1; }
+echo "released: https://github.com/BardiaT94/MochiWin/releases/tag/v$v"
 tools/winget.sh "$v" || echo "winget: the pull request could not be opened; run tools/winget.sh $v again" >&2

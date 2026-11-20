@@ -21,7 +21,27 @@ machine, Remote Desktop), Mochi starts its bundled software renderer by itself.
 ## Build
 
 Cross-compiled from Linux; see [WINDOWS.md](WINDOWS.md) for what works on Windows, how
-the port is organised and how to build the installer.
+the port is organised and how to build the installer. Releases are built by GitHub Actions
+([release.yml](.github/workflows/release.yml)) from a tagged commit.
+
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io),
+certificate by [SignPath Foundation](https://signpath.org).
+
+- Committers and reviewers: [BardiaT94](https://github.com/BardiaT94)
+- Approvers: [BardiaT94](https://github.com/BardiaT94)
+
+Only builds made by this repository's GitHub Actions workflow from a tagged release are
+signed.
+
+### Privacy
+
+Mochi sends no data about you or your files. It contacts the network only:
+
+- once a day, to ask api.github.com whether a newer release exists (turn this off with
+  `auto_update_check` in the settings file);
+- when you ask it to, for example to connect to a server or open a web link.
 
 ---
 
