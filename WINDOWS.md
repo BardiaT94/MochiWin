@@ -52,7 +52,8 @@ Mochi to close instead of asking, keeps the desktop shortcut only if it is still
 `tools/win-release.sh X.Y.Z "notes"` writes `MOCHI_VERSION` (the same number as Linux Mochi;
 `build.rs` puts it in the exe), builds the installer, commits and tags as BardiaT94, pushes,
 and makes a GitHub release on BardiaT94/MochiWin with `MochiSetup.exe`, its `.sha256` and
-`mochi-windows.zip`. `MESA_7Z` and `NSIS_DIR` default to `FileManager/wintools/`.
+`mochi-windows.zip`, then sends the version to winget (`tools/winget.sh`: a pull request on
+microsoft/winget-pkgs from BardiaT94's fork). `MESA_7Z` and `NSIS_DIR` default to `FileManager/wintools/`.
 
 The app checks those releases once a day (as on Linux). When there is a newer one, the ⋮
 button gets a dot and the ⋮ menu offers "Update to Mochi X.Y.Z". That downloads

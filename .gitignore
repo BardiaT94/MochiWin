@@ -45,6 +45,7 @@
 !/tools/labels.sh
 !/tools/win-build.sh
 !/tools/win-release.sh
+!/tools/winget.sh
 !/tools/MESA-LICENSE.txt
 
 # Crates carried with a change of ours, patched in from Cargo.toml (each says why).

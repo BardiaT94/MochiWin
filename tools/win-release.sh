@@ -4,7 +4,8 @@
 # and tags as BardiaT94, pushes, and makes a GitHub release on BardiaT94/MochiWin with
 # MochiSetup.exe, its .sha256 and mochi-windows.zip. Every installed Mochi on Windows finds
 # it within a day and offers it in its ⋮ menu (it runs the installer quietly).
-# MESA_7Z and NSIS_DIR default to FileManager/wintools/.
+# Then the winget pull request (tools/winget.sh). MESA_7Z and NSIS_DIR default to
+# FileManager/wintools/.
 set -e
 C=$(dirname "$(dirname "$(readlink -f "$0")")")
 cd "$C"
@@ -30,3 +31,5 @@ git push -q origin HEAD "v$v"
 body=$(printf '%s\n\n---\n\n**Install:** download `MochiSetup.exe` and run it (no admin rights needed). Windows may say "Windows protected your PC" because the installer is not signed yet: click **More info**, then **Run anyway**.\n\nNo installer: `mochi-windows.zip` holds the same program; unzip it and run `mochi.exe`.\n\nAfter installing, Mochi looks for new versions once a day and offers them in its ⋮ menu.\n' "${notes:-Mochi $v}")
 GH_TOKEN=$(gh auth token -u BardiaT94) gh release create "v$v" -R BardiaT94/MochiWin --title "Mochi $v for Windows" \
   --notes "$body" MochiSetup.exe MochiSetup.exe.sha256 mochi-windows.zip
+# And to winget (a pull request on microsoft/winget-pkgs; it goes live once merged).
+tools/winget.sh "$v" || echo "winget: the pull request could not be opened; run tools/winget.sh $v again" >&2
