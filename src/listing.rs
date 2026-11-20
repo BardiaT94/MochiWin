@@ -1036,6 +1036,85 @@ pub(crate) fn rename_field(ui: &mut Ui, rect: Rect, idx: u32, t: &mut Tab, env: 
     true
 }
 
+/// Mochi: renaming in the icon view. The name wraps onto as many lines as it needs, the
+/// tile's width, on a solid box above every other tile (a long name spread across the
+/// row, under its neighbours, before).
+pub(crate) fn rename_field_grid(ui: &mut Ui, rect: Rect, idx: u32, t: &mut Tab, env: &mut Env, font: &FontId) -> bool {
+    let Some(r) = t.rename.as_mut() else { return false };
+    let Some(fi) = r.fields.iter().position(|f| f.idx == idx) else { return false };
+    let bad = r.conflicts().contains(&fi);
+    let pal = env.pal;
+    let f = &r.fields[fi];
+    let wrap = (rect.width() - 10.0).max(24.0);
+    let mut job = LayoutJob::single_section(f.text_string(), egui::TextFormat { font_id: font.clone(), color: pal.text, ..Default::default() });
+    job.wrap = egui::text::TextWrapping { max_width: wrap, max_rows: usize::MAX, break_anywhere: false, overflow_character: None };
+    let galley = ui.fonts_mut(|fo| fo.layout_job(job));
+    let since = ui.input(|i| i.time) - r.shake;
+    let jolt = if env.cfg.animations && (0.0..0.4).contains(&since) {
+        ui.ctx().request_repaint();
+        ((since * 42.0).sin() * 7.0 * (1.0 - since / 0.4)) as f32
+    } else {
+        0.0
+    };
+    let w = galley.size().x.max(font.size * 2.0) + 10.0;
+    let box_r = Rect::from_min_size(pos2(rect.center().x - w / 2.0 + jolt, rect.top()), vec2(w, galley.size().y + 6.0));
+    let origin = box_r.min + vec2(5.0, 3.0);
+    let (a, b) = f.selection();
+    let caret = galley.pos_from_cursor(egui::text::CCursor::new(f.caret));
+    let blink = (ui.input(|i| i.time) * 2.0) as i64 % 2 == 0;
+    ui.ctx().request_repaint_after(std::time::Duration::from_millis(500));
+    let [cr, cg, cb, _] = pal.raised.to_array();
+    let fill = Color32::from_rgb(cr, cg, cb);
+    let edge = if bad { pal.danger } else { pal.accent.gamma_multiply(0.8) };
+    let g = galley.clone();
+    let half = font.size * 0.4;
+    let area = egui::Area::new(Id::new(("rename grid", t.id, idx))).order(egui::Order::Foreground).fixed_pos(box_r.min).show(ui.ctx(), |ui| {
+        let (br, resp) = ui.allocate_exact_size(box_r.size(), Sense::click_and_drag());
+        let p = ui.painter();
+        p.rect_filled(br.translate(vec2(0.0, 2.0)).expand(1.0), CornerRadius::same(7), Color32::from_black_alpha(50));
+        p.rect(br, CornerRadius::same(6), fill, Stroke::new(1.0, edge), StrokeKind::Outside);
+        // The selection, one glyph at a time (it may run over several lines).
+        for i in a..b {
+            let p0 = g.pos_from_cursor(egui::text::CCursor::new(i));
+            let p1 = g.pos_from_cursor(egui::text::CCursor::new(i + 1));
+            let x1 = if (p1.min.y - p0.min.y).abs() < 0.5 { p1.min.x } else { p0.min.x + half };
+            p.rect_filled(Rect::from_min_max(origin + vec2(p0.min.x, p0.min.y), origin + vec2(x1, p0.max.y)), CornerRadius::ZERO, pal.selected);
+        }
+        p.galley(origin, g.clone(), pal.text);
+        if blink {
+            p.line_segment([origin + vec2(caret.min.x, caret.min.y), origin + vec2(caret.min.x, caret.max.y)], Stroke::new(1.5, pal.accent));
+        }
+        resp
+    });
+    let resp = area.inner;
+    if resp.clicked() || resp.dragged() {
+        if let Some(pp) = resp.interact_pointer_pos() {
+            let c = galley.cursor_from_pos(pp - origin);
+            let shift = ui.input(|i| i.modifiers.shift) || resp.dragged() && !resp.drag_started();
+            r.click_at(c.index.into(), shift);
+        }
+    }
+    if resp.double_clicked() {
+        r.select_all();
+    }
+    if resp.secondary_clicked() {
+        env.actions.push(Action::Open(Popup::rename_menu(env.panel_id, resp.interact_pointer_pos().unwrap_or(box_r.left_bottom()))));
+    }
+    if fi == 0 && (bad || r.is_batch()) {
+        let now = if r.is_batch() { r.error.clone() } else { r.error.as_ref().and_then(|_| r.reason()) };
+        if let Some(err) = &now {
+            let g = ui.painter().layout_no_wrap(err.clone(), FontId::proportional((font.size - 1.5).max(9.0)), pal.danger);
+            let card = Rect::from_min_size(pos2(rect.center().x - (g.size().x + 14.0) / 2.0, box_r.bottom() + 4.0), g.size() + vec2(14.0, 8.0));
+            let p = ui.ctx().layer_painter(egui::LayerId::new(egui::Order::Tooltip, Id::new(("rename why", t.id))));
+            p.rect_filled(card.translate(vec2(0.0, 2.0)), CornerRadius::same(6), Color32::from_black_alpha(40));
+            p.rect_filled(card, CornerRadius::same(6), pal.raised);
+            p.rect_stroke(card, CornerRadius::same(6), Stroke::new(1.0, pal.danger.gamma_multiply(0.6)), StrokeKind::Inside);
+            p.galley(card.min + vec2(7.0, 4.0), g, pal.danger);
+        }
+    }
+    true
+}
+
 /// Rubber-band selection on the content background. `hit` maps a content-space rect to item indices.
 fn rubber_band(ui: &mut Ui, bg: &Response, origin: Pos2, viewport_screen: Rect, t: &mut Tab, env: &mut Env, hit: &dyn Fn(Rect) -> Vec<u32>) {
     let mods = ui.input(|i| i.modifiers);
@@ -1801,7 +1880,7 @@ fn grid(ui: &mut Ui, rect: Rect, t: &mut Tab, env: &mut Env, q: &fuzzy::Query, m
                         if face_cut {
                             full_name_tip(ui, icon_r, &display_name(&e, env.cfg), &name_font, 0.0, (t.id, idx));
                         }
-                    } else if !rename_field(ui, name_line, idx, t, env, &font) {
+                    } else if !rename_field_grid(ui, Rect::from_min_size(name_line.min - vec2(6.0, 0.0), vec2(name_line.width() + 12.0, name_line.height())), idx, t, env, &font) {
                         let rows = if s < 72.0 { 1 } else { 2 };
                         let (sub, acc, _) = sel_colors(&pal, false);
                         let mut job = name_job(ui, &display_name(&e, env.cfg), None, q, &name_font, dimc(if picked { crate::kit::on_lift(&pal) } else { pal.text }), sub, acc, text_r.width(), rows);

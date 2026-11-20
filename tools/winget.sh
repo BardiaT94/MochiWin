@@ -70,6 +70,10 @@ ManifestType: defaultLocale
 ManifestVersion: 1.9.0
 "
 
+# One pull request at a time: while an earlier one is open, a second would only confuse the
+# reviewers (run this again for the newest version once it is merged).
+open=$(gh pr list -R microsoft/winget-pkgs --author BardiaT94 --state open --search "$ID in:title" --json number,title --jq '.[0] | select(.) | "#\(.number) \(.title)"')
+if [ -n "$open" ]; then echo "winget: $open is still open; not sending $v yet"; exit 0; fi
 gh api repos/BardiaT94/winget-pkgs > /dev/null 2>&1 || { gh repo fork microsoft/winget-pkgs --clone=false > /dev/null; sleep 5; }
 gh api -X POST repos/BardiaT94/winget-pkgs/merge-upstream -f branch=master > /dev/null
 BASE=$(gh api repos/BardiaT94/winget-pkgs/git/ref/heads/master --jq .object.sha)
