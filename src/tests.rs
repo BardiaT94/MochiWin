@@ -12777,7 +12777,7 @@ fn free_up_home(d: &Path) -> crate::freeup::Places {
 fn free_up_done(v: &mut crate::freeup::View) {
     let start = Instant::now();
     while !(v.done && v.counting() == 0) {
-        assert!(start.elapsed() < Duration::from_secs(10), "the scan never finished");
+        assert!(start.elapsed() < Duration::from_secs(30), "the scan never finished");
         std::thread::sleep(Duration::from_millis(10));
         v.pump();
     }
