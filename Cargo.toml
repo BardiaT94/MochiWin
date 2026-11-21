@@ -44,9 +44,12 @@ x11rb = { version = "0.13.2", default-features = false, features = ["allow-unsaf
 
 # Windows: GL through WGL.
 [target.'cfg(windows)'.dependencies]
+# Zip read and written in the app itself (Windows has no bsdtar; its tar.exe mangles
+# names outside the system's code page).
+zip = { version = "=9.7.3", default-features = false, features = ["deflate-flate2", "aes-crypto"] }
 glutin = { version = "0.32.3", default-features = false, features = ["wgl"] }
 glutin-winit = { version = "0.5.0", default-features = false, features = ["wgl"] }
-windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_System_Threading", "Win32_Storage_FileSystem", "Win32_System_SystemInformation", "Win32_Security_Cryptography", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging", "Win32_System_Registry", "Win32_System_Console", "Win32_System_Pipes", "Win32_System_IO", "Win32_Security", "Win32_System_DataExchange", "Win32_System_Memory", "Win32_System_Ole", "Win32_System_Com", "Win32_UI_Shell_Common"] }
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_System_Threading", "Win32_Storage_FileSystem", "Win32_System_SystemInformation", "Win32_Security_Cryptography", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging", "Win32_System_Registry", "Win32_System_Console", "Win32_System_Pipes", "Win32_System_IO", "Win32_Security", "Win32_System_DataExchange", "Win32_System_Memory", "Win32_System_Ole", "Win32_System_Com", "Win32_UI_Shell_Common", "Win32_System_JobObjects"] }
 
 [features]
 # Test-only input driver (see src/testkit.rs).

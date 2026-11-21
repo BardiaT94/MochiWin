@@ -118,6 +118,7 @@ The folder adds about 86 MB (78 MB of it is Mesa's driver).
 | Free space | `GetDiskFreeSpaceExW` |
 | Network drives | Detected (mapped letters and `\\server\share`) |
 | Open a file | The default app for its type (`ShellExecuteW`) |
+| Archives (browse inside, extract, compress, change) | Mochi is its own bsdtar: the archive code runs `mochi.exe --bsdtar ...` (`src/win/ziptool.rs`). Zip is read and written there (the `zip` crate; AES and ZipCrypto passwords; new ones locked with AES-256), with every name intact. Other kinds go to the `tar.exe` Windows 10 and 11 ship, which loses names outside the system's code page. `--bsdcat` opens a lone `.gz`. Progress comes from the helper's read bytes (`GetProcessIoCounters`) |
 | Open with | The apps Windows has for the file's type (`SHAssocEnumHandlers`, `src/win/assoc.rs`), the default first; "Show all applications" lists every registered one; opening goes through the shell (`IAssocHandler::Invoke`), so Store apps work. "More apps…" opens Windows' own Open with window, the only way Windows allows to set a default |
 | Open a terminal here | Windows Terminal, else PowerShell |
 | Dates | Local time through the C runtime, English day and month names |

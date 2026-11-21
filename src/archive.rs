@@ -29,7 +29,7 @@ pub fn single(archive: &Path) -> bool {
 
 /// A command that writes `archive`'s one file, decompressed, to its output.
 fn cat(archive: &Path) -> Result<Command, String> {
-    if crate::media::have("bsdcat") {
+    if cfg!(windows) || crate::media::have("bsdcat") {
         let mut c = tool("bsdcat");
         c.arg("--").arg(archive);
         return Ok(c);
@@ -106,7 +106,8 @@ pub fn available() -> bool {
     if GONE.with(|g| g.get()) {
         return false;
     }
-    crate::media::have("bsdtar")
+    // Windows: built in (win/ziptool.rs).
+    cfg!(windows) || crate::media::have("bsdtar")
 }
 
 #[cfg(test)]
@@ -163,6 +164,14 @@ fn seven_kind(archive: &Path) -> bool {
 }
 
 pub(crate) fn tool(name: &str) -> Command {
+    // Windows: bsdtar and bsdcat are this program (win/ziptool.rs), with no window.
+    #[cfg(windows)]
+    if name == "bsdtar" || name == "bsdcat" {
+        use std::os::windows::process::CommandExt;
+        let mut c = Command::new(std::env::current_exe().unwrap_or_else(|_| PathBuf::from("mochi.exe")));
+        c.arg(format!("--{name}")).creation_flags(0x0800_0000);
+        return c;
+    }
     let mut c = Command::new(name);
     #[cfg(target_os = "linux")]
     unsafe {

@@ -167,6 +167,9 @@ mod watch;
 #[cfg(windows)]
 #[path = "win/assoc.rs"]
 mod assoc;
+#[cfg(windows)]
+#[path = "win/ziptool.rs"]
+mod ziptool;
 #[cfg_attr(not(target_os = "linux"), path = "win/wlclip.rs")]
 mod wlclip;
 #[cfg(target_os = "linux")]
@@ -209,6 +212,16 @@ fn windows_startup() {
 }
 
 fn main() {
+    // Windows: Mochi run as its own bsdtar or bsdcat by the archive code (win/ziptool.rs).
+    #[cfg(windows)]
+    {
+        let a: Vec<std::ffi::OsString> = std::env::args_os().skip(1).collect();
+        match a.first().and_then(|x| x.to_str()) {
+            Some("--bsdtar") => std::process::exit(ziptool::bsdtar(a[1..].to_vec())),
+            Some("--bsdcat") => std::process::exit(ziptool::bsdcat(a[1..].to_vec())),
+            _ => {}
+        }
+    }
     #[cfg(windows)]
     windows_startup();
     memory::tune();

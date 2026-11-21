@@ -318,6 +318,24 @@ fn unprompted(s: &str) -> String {
 pub const CANCELLED: &str = "Cancelled";
 
 /// Bytes a process has read so far, all its threads together.
+#[cfg(windows)]
+fn read_so_far(pid: crate::compat::sys::pid_t) -> Option<u64> {
+    use windows_sys::Win32::Foundation::CloseHandle;
+    use windows_sys::Win32::System::Threading::{GetProcessIoCounters, IO_COUNTERS, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION};
+    unsafe {
+        let h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid as u32);
+        if h.is_null() {
+            return None;
+        }
+        let mut io: IO_COUNTERS = std::mem::zeroed();
+        let ok = GetProcessIoCounters(h, &mut io) != 0;
+        CloseHandle(h);
+        ok.then_some(io.ReadTransferCount)
+    }
+}
+
+/// Bytes a process has read so far, all its threads together.
+#[cfg(unix)]
 fn read_so_far(pid: crate::compat::sys::pid_t) -> Option<u64> {
     let s = std::fs::read_to_string(format!("/proc/{pid}/io")).ok()?;
     s.lines().find_map(|l| l.strip_prefix("rchar: "))?.trim().parse().ok()
