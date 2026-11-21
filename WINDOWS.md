@@ -122,6 +122,8 @@ The folder adds about 86 MB (78 MB of it is Mesa's driver).
 | Dates | Local time through the C runtime, English day and month names |
 | Stop a running tool | `TerminateProcess` |
 | Folder looks (colour and symbol) | Kept in the folder's NTFS stream `Folder:mochi.look`; drives without streams (FAT, exFAT) say they can't keep one. Plain folders are drawn in the same art, in its blue |
+| Clipboard | The Windows clipboard (`WinClip` in `src/win/wlclip.rs`): copied or cut files as Explorer puts them (CF_HDROP and "Preferred DropEffect"), so browsers, Telegram and Explorer paste them; text as CF_UNICODETEXT; pasting a picture (PNG, JFIF, GIF or a bitmap) or text makes a file |
+| Drag out | Past the window's edge, files go on as the shell's own drag (`SHCreateDataObject` + `SHDoDragDrop`), with Explorer's picture; the target picks copy, move or link |
 | Updates | From MochiWin's GitHub releases, through the installer (see "Releases and updates") |
 
 ## Switched off on Windows for now
@@ -132,7 +134,6 @@ The folder adds about 86 MB (78 MB of it is Mesa's driver).
 | Drives view (mount, eject, format) | Windows drive APIs | 2 |
 | "Open with" app list | Registry file associations | 2 |
 | Live folder refresh | `ReadDirectoryChangesW` | 2 |
-| Clipboard and drag out | Windows clipboard and OLE drag-drop | 3 |
 | Admin actions | UAC prompt | 3 |
 | One window for many launches | Named pipe | 3 |
 | Tags, file origin | NTFS streams | 3 |

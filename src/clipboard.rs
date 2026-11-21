@@ -1,6 +1,7 @@
 //! System clipboard: text for egui, plus file lists that interoperate with other
 //! file managers (text/uri-list, x-special/gnome-copied-files, KDE cut marker).
-//! Wayland uses our own wl_data_device client, X11 our own selection owner (xclip.rs).
+//! Wayland uses our own wl_data_device client, X11 our own selection owner (xclip.rs),
+//! Windows the system clipboard and the shell's drag (win/wlclip.rs).
 
 use std::path::PathBuf;
 use std::sync::{Mutex, OnceLock};
@@ -94,9 +95,10 @@ pub fn start_drag(paths: Vec<PathBuf>, picture: Option<crate::wlclip::Picture>, 
             Clip::Wayland(w) => w.start_drag(paths, picture),
             #[cfg(target_os = "linux")]
             Clip::X11(x) => x.start_drag(paths, scale),
-            #[cfg(not(target_os = "linux"))]
-            Clip::None => {
-                let _ = (paths, picture, scale);
+            #[cfg(windows)]
+            Clip::Win(w) => {
+                let _ = (picture, scale);
+                w.start_drag(paths);
             }
         }
         Some(())
@@ -108,9 +110,8 @@ enum Clip {
     Wayland(crate::wlclip::WlClip),
     #[cfg(target_os = "linux")]
     X11(crate::xclip::XClip),
-    /// No backend on this system yet (Windows); never constructed.
-    #[cfg(not(target_os = "linux"))]
-    None,
+    #[cfg(windows)]
+    Win(crate::wlclip::WinClip),
 }
 
 impl Clip {
@@ -120,8 +121,8 @@ impl Clip {
             Clip::Wayland(w) => w.store(items),
             #[cfg(target_os = "linux")]
             Clip::X11(x) => x.store(items),
-            #[cfg(not(target_os = "linux"))]
-            Clip::None => drop(items),
+            #[cfg(windows)]
+            Clip::Win(w) => w.store(items),
         }
     }
 
@@ -131,8 +132,8 @@ impl Clip {
             Clip::Wayland(w) => w.load(prefer),
             #[cfg(target_os = "linux")]
             Clip::X11(x) => x.load(prefer),
-            #[cfg(not(target_os = "linux"))]
-            Clip::None => Err(std::io::ErrorKind::Unsupported.into()),
+            #[cfg(windows)]
+            Clip::Win(w) => w.load(prefer),
         }
     }
 }
@@ -149,6 +150,14 @@ pub fn init(window: &winit::window::Window) {
         Ok(RawDisplayHandle::Wayland(w)) => Some(Clip::Wayland(unsafe { crate::wlclip::WlClip::new(w.display.as_ptr()) })),
         #[cfg(target_os = "linux")]
         Ok(RawDisplayHandle::Xlib(_)) | Ok(RawDisplayHandle::Xcb(_)) => crate::xclip::XClip::new(window).map(Clip::X11),
+        #[cfg(windows)]
+        Ok(RawDisplayHandle::Windows(_)) => {
+            use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
+            match window.window_handle().map(|h| h.as_raw()) {
+                Ok(RawWindowHandle::Win32(h)) => Some(Clip::Win(crate::wlclip::WinClip::new(h.hwnd.get() as usize))),
+                _ => None,
+            }
+        }
         _ => None,
     };
     let _ = CLIP.set(Mutex::new(clip));
@@ -191,6 +200,15 @@ pub fn available() -> bool {
 
 /// Clipboard text; a copied file list is returned as one path per line.
 pub fn get_text() -> Option<String> {
+    #[cfg(windows)]
+    return with(|c| {
+        let Clip::Win(w) = c;
+        match w.load(&TEXT_MIMES) {
+            Ok((_, b)) => Some(String::from_utf8_lossy(&b).replace("\r\n", "\n")),
+            Err(_) => w.files().map(|(paths, _)| paths.iter().map(|p| p.to_string_lossy().into_owned()).collect::<Vec<_>>().join("\n")),
+        }
+    });
+    #[cfg(not(windows))]
     with(|c| {
         let (mime, bytes) = c.load(&["text/plain;charset=utf-8", "UTF8_STRING", "text/plain", "text/uri-list"]).ok()?;
         let s = String::from_utf8_lossy(&bytes).replace("\r\n", "\n");
@@ -226,6 +244,14 @@ pub fn parse_gnome_files(s: &str) -> (Vec<PathBuf>, bool) {
 
 /// Publish files to the system clipboard. Returns false if only the internal clipboard is used.
 pub fn set_files(paths: &[PathBuf], cut: bool) -> bool {
+    #[cfg(windows)]
+    return with(|c| {
+        let Clip::Win(w) = c;
+        w.set_files(paths, cut);
+        Some(true)
+    })
+    .unwrap_or(false);
+    #[cfg(not(windows))]
     with(|c| {
         c.store(file_items(paths, cut));
         Some(true)
@@ -236,8 +262,18 @@ pub fn set_files(paths: &[PathBuf], cut: bool) -> bool {
 /// Read files from the system clipboard: (paths, is_cut).
 pub fn get_files() -> Option<(Vec<PathBuf>, bool)> {
     let from_text = |s: &str| -> Vec<PathBuf> {
-        s.lines().map(|l| l.trim().trim_matches('"').trim_matches('\'')).filter(|l| l.starts_with('/')).map(PathBuf::from).filter(|p| p.exists()).collect()
+        s.lines().map(|l| l.trim().trim_matches('"').trim_matches('\'')).filter(|l| std::path::Path::new(l).is_absolute()).map(PathBuf::from).filter(|p| p.exists()).collect()
     };
+    #[cfg(windows)]
+    return with(|c| {
+        let Clip::Win(w) = c;
+        w.files().or_else(|| {
+            let (_, b) = w.load(&TEXT_MIMES).ok()?;
+            let paths = from_text(&String::from_utf8_lossy(&b));
+            (!paths.is_empty()).then_some((paths, false))
+        })
+    });
+    #[cfg(not(windows))]
     with(|c| {
         let (mime, bytes) = c.load(&["x-special/gnome-copied-files", "text/uri-list", "text/plain;charset=utf-8", "text/plain"]).ok()?;
         let s = String::from_utf8_lossy(&bytes).into_owned();
