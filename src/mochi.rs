@@ -635,17 +635,31 @@ pub fn persian_font() -> Option<PathBuf> {
     list("Digi Hamishe:style=Regular").or_else(|| list(":lang=fa:style=Regular"))
 }
 
-/// `text` as it should appear on screen: egui neither joins Arabic-script letters nor lays
-/// right-to-left runs out from the right, so Persian names get their joined letter forms
-/// and visual order here. Any other text comes back as it is.
+/// `text` as it should appear on screen: egui (0.37) joins Arabic-script letters and sets
+/// each run of them right to left, but lays the runs out left to right, so a Persian name
+/// gets its words (and the Latin parts beside them) in visual order here. Any other text
+/// comes back as it is.
 pub fn visual(text: &str) -> std::borrow::Cow<'_, str> {
     let rtl = |c: char| matches!(c as u32, 0x0590..=0x08FF | 0xFB1D..=0xFDFF | 0xFE70..=0xFEFF);
     if !text.chars().any(rtl) {
         return text.into();
     }
-    let shaped = ar_reshaper::reshape_line(text);
-    let bidi = unicode_bidi::BidiInfo::new(&shaped, None);
-    let out: String = bidi.paragraphs.iter().map(|p| bidi.reorder_line(p, p.range.clone()).into_owned()).collect();
+    let bidi = unicode_bidi::BidiInfo::new(text, None);
+    let line: String = bidi.paragraphs.iter().map(|p| bidi.reorder_line(p, p.range.clone()).into_owned()).collect();
+    // egui's shaper joins the letters and sets each run of them right to left itself, so
+    // each run goes back in reading order; only the runs themselves are in visual order.
+    let in_run = |c: char| rtl(c) || matches!(c, '\u{200C}' | '\u{200D}');
+    let mut out = String::with_capacity(line.len());
+    let mut run: Vec<char> = vec![];
+    for c in line.chars() {
+        if in_run(c) {
+            run.push(c);
+        } else {
+            out.extend(run.drain(..).rev());
+            out.push(c);
+        }
+    }
+    out.extend(run.drain(..).rev());
     out.into()
 }
 

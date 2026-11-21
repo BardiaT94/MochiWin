@@ -27,7 +27,6 @@ serde_json = "1.0.154"
 vte = { version = "0.15.0", default-features = false }
 winit = { version = "0.30.13", default-features = false, features = ["rwh_06"] }
 zune-jpeg = "=0.4.21"
-ar-reshaper = "1.5.0"
 unicode-bidi = "0.3.18"
 flate2 = "1"
 

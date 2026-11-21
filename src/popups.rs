@@ -2911,7 +2911,7 @@ pub(crate) const OPTS: &[(Opt, Section, &str, &str, &str)] = &[
     (Opt::SingleInstance, Section::System, "System", "Reuse the open window", "Folders other apps open become tabs here."),
     (Opt::AssetCache, Section::System, "System", "Asset cache size", "Memory for thumbnails and previews."),
     (Opt::Editor, Section::System, "Developer", "Editor", "Empty finds one; a command can use {file} and {line}."),
-    (Opt::Updates, Section::System, "Updates", "Check for updates", "Rebuilds Mochi on Maia's newest commits, when asked."),
+    (Opt::Updates, Section::System, "Updates", "Check for updates", "Looks for a newer Mochi and installs it, when asked."),
     (Opt::Tour, Section::System, "Updates", "What's new", "What this version added, and the welcome tour."),
     (Opt::ConfigFile, Section::System, "Settings", "Config file", "Every option as text, in your editor."),
     (Opt::ResetAll, Section::System, "Settings", "Reset to defaults", "Every option and hotkey; asks first."),
