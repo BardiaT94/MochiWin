@@ -245,40 +245,58 @@ impl WinClip {
     /// Carry files out of the window: the shell's own drag, as from Explorer, with its
     /// picture. Returns when they are dropped (the system runs the drag meanwhile).
     pub fn start_drag(&self, paths: Vec<PathBuf>) {
-        // IID_IDataObject
-        const IID: windows_sys::core::GUID = windows_sys::core::GUID::from_u128(0x0000010e_0000_0000_c000_000000000046);
+        let obj = data_object(&paths);
+        if obj.is_null() {
+            return;
+        }
         unsafe {
-            let pidls: Vec<*mut sys::ITEMIDLIST> = paths.iter().map(|p| sys::ILCreateFromPathW(wide(p.as_os_str()).as_ptr())).filter(|p| !p.is_null()).collect();
-            if pidls.is_empty() {
-                return;
-            }
-            // Items in one folder go as children of it (the usual case); others as
-            // children of the desktop, whose ID list is empty.
-            let parent = paths[0].parent();
-            let shared = parent.is_some() && paths.iter().all(|p| p.parent() == parent);
-            let folder = if shared { sys::ILCreateFromPathW(wide(parent.unwrap_or(&paths[0]).as_os_str()).as_ptr()) } else { std::ptr::null_mut() };
-            let desktop = [0u16; 1];
-            let (root, items): (*const sys::ITEMIDLIST, Vec<*const sys::ITEMIDLIST>) = if !folder.is_null() {
-                (folder, pidls.iter().map(|&p| sys::ILFindLastID(p) as *const _).collect())
-            } else {
-                (desktop.as_ptr() as *const _, pidls.iter().map(|&p| p as *const _).collect())
-            };
-            let mut obj: *mut core::ffi::c_void = std::ptr::null_mut();
-            let hr = sys::SHCreateDataObject(root, items.len() as u32, items.as_ptr(), std::ptr::null_mut(), &IID, &mut obj);
-            if hr >= 0 && !obj.is_null() {
-                let mut effect = 0;
-                // Copy, move or link: the target picks, as with a drag from Explorer.
-                sys::SHDoDragDrop(self.hwnd as sys::HWND, obj, std::ptr::null_mut(), 1 | 2 | 4, &mut effect);
-                // IUnknown::Release, the third entry of its table.
-                let vtbl = *(obj as *const *const unsafe extern "system" fn(*mut core::ffi::c_void) -> u32);
-                (*vtbl.add(2))(obj);
-            }
-            if !folder.is_null() {
-                sys::ILFree(folder);
-            }
-            for p in pidls {
-                sys::ILFree(p);
-            }
+            let mut effect = 0;
+            // Copy, move or link: the target picks, as with a drag from Explorer.
+            sys::SHDoDragDrop(self.hwnd as sys::HWND, obj, std::ptr::null_mut(), 1 | 2 | 4, &mut effect);
+            release(obj);
         }
     }
+}
+
+/// IUnknown::Release on a COM object, the third entry of its table.
+pub unsafe fn release(obj: *mut core::ffi::c_void) {
+    unsafe {
+        let vtbl = *(obj as *const *const unsafe extern "system" fn(*mut core::ffi::c_void) -> u32);
+        (*vtbl.add(2))(obj);
+    }
+}
+
+/// The shell's data object for `paths` (an IDataObject, as Explorer makes for a copy or a
+/// drag), or null. The caller releases it.
+pub fn data_object(paths: &[PathBuf]) -> *mut core::ffi::c_void {
+    // IID_IDataObject
+    const IID: windows_sys::core::GUID = windows_sys::core::GUID::from_u128(0x0000010e_0000_0000_c000_000000000046);
+    let mut obj: *mut core::ffi::c_void = std::ptr::null_mut();
+    unsafe {
+        let pidls: Vec<*mut sys::ITEMIDLIST> = paths.iter().map(|p| sys::ILCreateFromPathW(wide(p.as_os_str()).as_ptr())).filter(|p| !p.is_null()).collect();
+        if pidls.is_empty() {
+            return obj;
+        }
+        // Items in one folder go as children of it (the usual case); others as
+        // children of the desktop, whose ID list is empty.
+        let parent = paths[0].parent();
+        let shared = parent.is_some() && paths.iter().all(|p| p.parent() == parent);
+        let folder = if shared { sys::ILCreateFromPathW(wide(parent.unwrap_or(&paths[0]).as_os_str()).as_ptr()) } else { std::ptr::null_mut() };
+        let desktop = [0u16; 1];
+        let (root, items): (*const sys::ITEMIDLIST, Vec<*const sys::ITEMIDLIST>) = if !folder.is_null() {
+            (folder, pidls.iter().map(|&p| sys::ILFindLastID(p) as *const _).collect())
+        } else {
+            (desktop.as_ptr() as *const _, pidls.iter().map(|&p| p as *const _).collect())
+        };
+        if sys::SHCreateDataObject(root, items.len() as u32, items.as_ptr(), std::ptr::null_mut(), &IID, &mut obj) < 0 {
+            obj = std::ptr::null_mut();
+        }
+        if !folder.is_null() {
+            sys::ILFree(folder);
+        }
+        for p in pidls {
+            sys::ILFree(p);
+        }
+    }
+    obj
 }

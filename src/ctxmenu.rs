@@ -297,9 +297,14 @@ pub fn build(app: &mut App, panel: u64, pos: Pos2, background: bool) -> Popup {
             let db = crate::mime::mime_db();
             let first_file = ents.iter().find(|e| !e.1).unwrap();
             let mime = db.for_path(&first_file.0, false);
-            let mut kids: Vec<Item> = crate::mime::apps()
-                .for_mime(&mime)
-                .into_iter()
+            // Windows: the apps the shell has for the file's type.
+            #[cfg(windows)]
+            let (_, list) = (&mime, crate::assoc::apps_for(&first_file.0, false));
+            #[cfg(windows)]
+            let found = list.iter();
+            #[cfg(unix)]
+            let found = crate::mime::apps().for_mime(&mime).into_iter();
+            let mut kids: Vec<Item> = found
                 .take(12)
                 .map(|a| Item { id: format!("app:{}", a.id), label: a.name.clone(), act: Act::OpenWith(a.id.clone()), children: vec![] })
                 .collect();
@@ -989,10 +994,10 @@ pub fn draw(app: &mut App, ctx: &egui::Context, st: &mut CtxState) -> bool {
         match it.act {
             Act::Cmd(c) => app.actions.push(Action::Cmd(c)),
             Act::OpenWith(id) => {
-                if let Some(a) = crate::mime::apps().by_id(&id) {
+                if let Some(a) = crate::mime::app_by_id(&id) {
                     let files: Vec<PathBuf> = st.targets.iter().filter(|p| !p.is_dir()).cloned().collect();
                     let cwd = files.first().and_then(|f| f.parent().map(|p| p.to_path_buf()));
-                    if let Err(e) = crate::mime::launch(a, &files, cwd.as_deref()) {
+                    if let Err(e) = crate::mime::launch(&a, &files, cwd.as_deref()) {
                         app.toast(format!("Couldn't launch {}: {e}", a.name));
                     }
                 }

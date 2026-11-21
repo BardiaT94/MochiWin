@@ -3570,7 +3570,12 @@ pub fn install_fonts(ctx: &egui::Context, family: &str, mono_family: &str) {
         prop.push("mono".into()); // box-drawing and arrows for proportional text too
     }
     // Mochi: Persian and Arabic names in Digi Hamishe, behind the UI and monospace fonts.
-    if let Some(b) = crate::mochi::persian_font().and_then(|p| map_font(&p)) {
+    let persian = crate::mochi::persian_font().and_then(|p| map_font(&p));
+    // Windows: Vazirmatn, built in, when Digi Hamishe isn't installed (Exo 2 has no
+    // Persian letters, and egui needs their joined forms, which Vazirmatn has).
+    #[cfg(windows)]
+    let persian = persian.or(Some(&include_bytes!("../assets/fonts/Vazirmatn-Regular.ttf")[..]));
+    if let Some(b) = persian {
         add(&mut fonts, "persian", b, &mut prop);
         mono.push("persian".into());
     }

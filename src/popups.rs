@@ -6260,10 +6260,20 @@ fn open_with(app: &mut App, ctx: &egui::Context, paths: &mut Vec<PathBuf>, query
     let db = crate::mime::mime_db();
     let first = paths[0].clone();
     let mime = db.for_path(&first, false);
+    #[cfg(unix)]
     let apps = crate::mime::apps();
+    #[cfg(unix)]
     let list: Vec<&crate::mime::App> = if *all { apps.apps.iter().filter(|a| !a.hidden).collect() } else { apps.for_mime(&mime) };
+    // Windows: the shell's apps for the type (all registered ones under "Show all").
+    #[cfg(windows)]
+    let shell_apps = crate::assoc::apps_for(&first, *all);
+    #[cfg(windows)]
+    let list: Vec<&crate::mime::App> = shell_apps.iter().collect();
+    #[cfg(windows)]
+    let mut more = false;
     let q = fuzzy::Query::new(query);
     let mut launch: Option<crate::mime::App> = None;
+    #[cfg_attr(windows, allow(unused_mut))]
     let mut set_def: Option<String> = None;
     let mut run: Option<String> = None;
     // Typing filters the apps, unless the command field has the keyboard.
@@ -6283,6 +6293,8 @@ fn open_with(app: &mut App, ctx: &egui::Context, paths: &mut Vec<PathBuf>, query
                     if ui.add(egui::Button::new(label).frame(false)).clicked() {
                         launch = Some((*a).clone());
                     }
+                    // Windows lets only its own window set a default ("More apps…").
+                    #[cfg(unix)]
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if crate::kit::small_button(ui, "Set default", &pal).clicked() {
                             set_def = Some(a.id.clone());
@@ -6294,7 +6306,17 @@ fn open_with(app: &mut App, ctx: &egui::Context, paths: &mut Vec<PathBuf>, query
                 ui.label(egui::RichText::new("No registered applications for this type.").color(pal.text_dim));
             }
         });
+        #[cfg(unix)]
         ui.checkbox(all, "Show all applications");
+        #[cfg(windows)]
+        ui.horizontal(|ui| {
+            ui.checkbox(all, "Show all applications");
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if crate::kit::small_button(ui, "More apps…", &pal).on_hover_text("Windows' own Open with: the Store, any program, and Always use this app").clicked() {
+                    more = true;
+                }
+            });
+        });
         // Or any command, the files after it (or where %f / %F put them).
         ui.add_space(4.0);
         ui.horizontal(|ui| {
@@ -6306,6 +6328,11 @@ fn open_with(app: &mut App, ctx: &egui::Context, paths: &mut Vec<PathBuf>, query
             }
         });
     });
+    #[cfg(windows)]
+    if more {
+        crate::assoc::system_dialog(&first);
+        return false;
+    }
     if let Some(c) = run {
         let command = if c.contains('%') { c.clone() } else { format!("{c} %F") };
         crate::ctxmenu::run_command(app, crate::config::CustomAction { name: c, command, files: true, folders: true, ..Default::default() }, paths);

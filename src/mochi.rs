@@ -619,7 +619,8 @@ pub fn place_icon(p: &Painter, ic: Rect, g: Glyph, t: ThemeName, pal: &Palette, 
 }
 
 /// Digi Hamishe's regular face for Persian text, else any font fontconfig has for Persian.
-/// Windows: Digi Hamishe when installed; else none, and Segoe UI's own Persian is used.
+/// Windows: Digi Hamishe when installed; else none, and the built-in Vazirmatn is used
+/// (theme.rs).
 #[cfg(windows)]
 pub fn persian_font() -> Option<PathBuf> {
     crate::compat::win::font_file("Digi Hamishe")

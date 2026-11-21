@@ -443,7 +443,26 @@ pub fn spawn_detached(#[allow(unused_mut)] mut cmd: Command) -> Result<(), Strin
     cmd.spawn().map(|_| ()).map_err(|e| e.to_string())
 }
 
+/// An app by its id: a desktop entry, or on Windows one of the shell's handlers.
+pub fn app_by_id(id: &str) -> Option<App> {
+    #[cfg(windows)]
+    if id.starts_with(crate::assoc::PREFIX) {
+        return crate::assoc::by_id(id);
+    }
+    apps().by_id(id).cloned()
+}
+
 pub fn launch(app: &App, paths: &[PathBuf], cwd: Option<&Path>) -> Result<(), String> {
+    #[cfg(windows)]
+    if let Some(name) = app.exec.strip_prefix(crate::assoc::PREFIX) {
+        #[cfg(test)]
+        {
+            LAUNCHED.lock().unwrap_or_else(|e| e.into_inner()).push(app.exec.clone());
+            return Ok(());
+        }
+        #[allow(unreachable_code)]
+        return crate::assoc::open_with(name, paths);
+    }
     let mut argv = expand_exec(&app.exec, paths, &app.name);
     if argv.is_empty() {
         return Err("empty Exec".into());

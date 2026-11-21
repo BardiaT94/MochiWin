@@ -5,6 +5,9 @@ Hurmit Nerd Font Mono (assets/fonts/HurmitNerdFontMono-Regular.otf), Hermit patc
 Copyright (c) 2017, Pablo Caro <me@pcaro.es> - http://pcaro.es/
 Nerd Fonts glyphs: Copyright (c) 2014, Ryan L McIntyre (https://github.com/ryanoasis/nerd-fonts)
 
+Vazirmatn (assets/fonts/Vazirmatn-Regular.ttf, version 33.001):
+Copyright 2015 The Vazirmatn Project Authors (https://github.com/rastikerdar/vazirmatn)
+
 This Font Software is licensed under the SIL Open Font License, Version 1.1.
 This license is copied below, and is also available with a FAQ at:
 https://scripts.sil.org/OFL

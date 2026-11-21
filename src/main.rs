@@ -164,6 +164,9 @@ mod vt;
 mod wash;
 #[cfg_attr(windows, path = "win/watch.rs")]
 mod watch;
+#[cfg(windows)]
+#[path = "win/assoc.rs"]
+mod assoc;
 #[cfg_attr(not(target_os = "linux"), path = "win/wlclip.rs")]
 mod wlclip;
 #[cfg(target_os = "linux")]

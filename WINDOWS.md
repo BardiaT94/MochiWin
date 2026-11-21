@@ -107,7 +107,7 @@ The folder adds about 86 MB (78 MB of it is Mesa's driver).
 
 | Feature | Windows behaviour |
 | :--- | :--- |
-| Window, drawing, fonts | winit + OpenGL (WGL); Exo 2 and Hurmit Nerd Font Mono built in (a font chosen in Settings still wins) |
+| Window, drawing, fonts | winit + OpenGL (WGL); Exo 2 and Hurmit Nerd Font Mono built in (a font chosen in Settings still wins); Persian in Digi Hamishe when installed, else the built-in Vazirmatn |
 | Text size | Default 14 pt (Linux: 12), times Settings > Accessibility > Text size. Settings saved at the old 12 move to it once |
 | Browse folders | Yes; Storage lists each drive letter, named as Explorer does ("Local Disk (C:)") |
 | Search in subfolders, Expand | Yes; folders are told apart by volume serial and file index (`fsx::file_id`), as Unix uses device and inode |
@@ -118,6 +118,7 @@ The folder adds about 86 MB (78 MB of it is Mesa's driver).
 | Free space | `GetDiskFreeSpaceExW` |
 | Network drives | Detected (mapped letters and `\\server\share`) |
 | Open a file | The default app for its type (`ShellExecuteW`) |
+| Open with | The apps Windows has for the file's type (`SHAssocEnumHandlers`, `src/win/assoc.rs`), the default first; "Show all applications" lists every registered one; opening goes through the shell (`IAssocHandler::Invoke`), so Store apps work. "More apps…" opens Windows' own Open with window, the only way Windows allows to set a default |
 | Open a terminal here | Windows Terminal, else PowerShell |
 | Dates | Local time through the C runtime, English day and month names |
 | Stop a running tool | `TerminateProcess` |
@@ -132,7 +133,6 @@ The folder adds about 86 MB (78 MB of it is Mesa's driver).
 | :--- | :--- | :--- |
 | Recycle Bin | Shell file operations | 2 |
 | Drives view (mount, eject, format) | Windows drive APIs | 2 |
-| "Open with" app list | Registry file associations | 2 |
 | Live folder refresh | `ReadDirectoryChangesW` | 2 |
 | Admin actions | UAC prompt | 3 |
 | One window for many launches | Named pipe | 3 |
