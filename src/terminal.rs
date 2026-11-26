@@ -1428,6 +1428,10 @@ pub fn pane(app: &mut App, ui: &mut Ui, full: Rect, above: f32) {
             // than its cells (a fallback font's) puts the next run back on its column.
             let (mut laid, mut want) = (0.0, 0.0);
             let end = row.cells.iter().rposition(|c| c.ch() != ' ').map_or(0, |i| i + 1);
+            // Mochi: right-to-left stretches (Persian) are laid as one piece each, in
+            // reading order: cell by cell their letters would not join and their words
+            // would run left to right.
+            let rtl = rtl_spans(&row.cells[..end.min(s.cols)]);
             for (x, &c) in row.cells.iter().enumerate().take(s.cols) {
                 let picked = sel.is_some_and(|(a, b)| (n, x) >= a && (n, x) <= b);
                 let (fg, bg) = colors(c, picked, &ansi, &pal);
@@ -1443,6 +1447,17 @@ pub fn pane(app: &mut App, ui: &mut Ui, full: Rect, above: f32) {
                 }
                 let ch = c.ch();
                 let w = if c.flags() & vt::WIDE != 0 { 2.0 * cw } else { cw };
+                if let Some(&(a, b)) = rtl.iter().find(|(a, b)| (*a..*b).contains(&x)) {
+                    if x == a {
+                        let text: String = row.cells[a..b].iter().filter(|c| c.flags() & vt::SPACER == 0).map(|c| c.ch()).collect();
+                        let format = egui::TextFormat { font_id: font.clone(), color: fg, ..Default::default() };
+                        let g = f.layout_job(egui::text::LayoutJob::single_section(crate::mochi::visual(&text).into_owned(), format));
+                        galleys.push((pos2(x0 + x as f32 * cw, top), g));
+                    }
+                    // The run after it starts on its own column again.
+                    want += w;
+                    continue;
+                }
                 let k = (fg, c.c & (vt::ITALIC | vt::UNDERLINE | vt::STRIKE));
                 if key != Some(k) || (want - laid) > 0.5 || (laid - want) > 0.5 {
                     let lead = want - laid;
@@ -1833,4 +1848,23 @@ fn colors(c: Cell, picked: bool, ansi: &[Color32; 16], pal: &Palette) -> (Color3
         fg = bg;
     }
     (fg, bg)
+}
+
+/// Mochi: the stretches of a row, as cell ranges, that read right to left: from a Persian
+/// or Arabic letter to the last one before a left-to-right letter, with the spaces,
+/// digits and marks between them.
+fn rtl_spans(cells: &[Cell]) -> Vec<(usize, usize)> {
+    let rtl = |c: char| matches!(c as u32, 0x0590..=0x08FF | 0xFB1D..=0xFDFF | 0xFE70..=0xFEFF);
+    let mut out = vec![];
+    let mut open: Option<(usize, usize)> = None;
+    for (x, c) in cells.iter().enumerate() {
+        let ch = c.ch();
+        if rtl(ch) {
+            open = Some((open.map_or(x, |o| o.0), x + 1));
+        } else if ch.is_alphabetic() {
+            out.extend(open.take());
+        }
+    }
+    out.extend(open);
+    out
 }
