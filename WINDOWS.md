@@ -126,6 +126,7 @@ The folder adds about 86 MB (78 MB of it is Mesa's driver).
 | Folder looks (colour and symbol) | Kept in the folder's NTFS stream `Folder:mochi.look`; drives without streams (FAT, exFAT) say they can't keep one. Plain folders are drawn in the same art, in its blue |
 | Clipboard | The Windows clipboard (`WinClip` in `src/win/wlclip.rs`): copied or cut files as Explorer puts them (CF_HDROP and "Preferred DropEffect"), so browsers, Telegram and Explorer paste them; text as CF_UNICODETEXT; pasting a picture (PNG, JFIF, GIF or a bitmap) or text makes a file |
 | Drag out | Past the window's edge, files go on as the shell's own drag (`SHCreateDataObject` + `SHDoDragDrop`), with Explorer's picture; the target picks copy, move or link |
+| Default file manager | Options > System > Default file manager (or `mochi.exe --set-default` / `--unset-default`). Per-user keys in `src/win/shellfolder.rs`: a `mochi` verb made the default of `HKCU\Software\Classes\Directory\shell` and `Drive\shell`, and Win+E (`CLSID\{52205fd8-...}\shell\opennewwindow`, empty `DelegateExecute`). Off deletes them and puts back another program's default verb; the uninstaller turns it off. Still Explorer: "Show in folder" in browsers (`SHOpenFolderAndSelectItems`), apps that run `explorer.exe` or ask for the "open" verb by name, and the Open/Save dialogs (drawn inside each app) |
 | Updates | From MochiWin's GitHub releases, through the installer (see "Releases and updates") |
 
 ## Switched off on Windows for now
@@ -139,7 +140,6 @@ The folder adds about 86 MB (78 MB of it is Mesa's driver).
 | One window for many launches | Named pipe | 3 |
 | Tags, file origin | NTFS streams | 3 |
 | Pause and resume a tool | Suspend and resume the process | 3 |
-| Replace Explorer (Win+E, opening folders) | Registry keys, opt-in | 4 |
 
 ### How the terminal pane works on Windows
 

@@ -168,6 +168,9 @@ mod watch;
 #[path = "win/assoc.rs"]
 mod assoc;
 #[cfg(windows)]
+#[path = "win/shellfolder.rs"]
+mod shellfolder;
+#[cfg(windows)]
 #[path = "win/ziptool.rs"]
 mod ziptool;
 #[cfg_attr(not(target_os = "linux"), path = "win/wlclip.rs")]
@@ -189,6 +192,7 @@ Usage: mochi [OPTIONS] [PATH...]
 Options:
   --install        Install to ~/.local/bin and add a launcher entry
   --set-default    Make Mochi the default file manager (inode/directory)
+  --unset-default  Give folders back to the previous file manager
   --set-picker     Open and save files for other apps (the desktop portal's dialog)
   --unset-picker   Give the Open and Save dialog back to the desktop
   --uninstall      Remove the launcher entry and installed binary
@@ -253,10 +257,11 @@ fn main() {
                 }
                 return;
             }
-            "--install" | "--set-default" | "--uninstall" => {
+            "--install" | "--set-default" | "--unset-default" | "--uninstall" => {
                 let r = match a {
                     "--install" => install::install(),
                     "--set-default" => install::set_default(),
+                    "--unset-default" => install::unset_default(),
                     _ => install::uninstall(),
                 };
                 match r {

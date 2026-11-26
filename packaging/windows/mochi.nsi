@@ -106,6 +106,8 @@ FunctionEnd
 ; Only Mochi's own files go: a folder chosen by hand may hold other things. Settings in
 ; %APPDATA%\mochi stay, as with other apps.
 Section "Uninstall"
+  ; Folders, drives and Win+E go back to Explorer if Mochi had them.
+  ExecWait '"$INSTDIR\mochi.exe" --unset-default'
   Delete "$SMPROGRAMS\Mochi.lnk"
   Delete "$DESKTOP\Mochi.lnk"
   Delete "$INSTDIR\mochi.exe"

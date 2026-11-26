@@ -3572,8 +3572,9 @@ fn options(app: &mut App, ctx: &egui::Context, st: &mut OptState) -> bool {
     }
     let searching = !st.query.trim().is_empty();
     let rows: Vec<usize> = if searching { find_options(&st.query) } else { (0..OPTS.len()).filter(|&i| OPTS[i].1 == section).collect() };
-    // Install only for a copy that isn't the installed one.
-    let all: Vec<usize> = rows.into_iter().filter(|&i| OPTS[i].0 != Opt::Install || !crate::install::installed_here()).collect();
+    // Install only for a copy that isn't the installed one. Windows draws the Open and
+    // Save dialogs inside each app, so that switch can't do anything there.
+    let all: Vec<usize> = rows.into_iter().filter(|&i| OPTS[i].0 != Opt::Install || !crate::install::installed_here()).filter(|&i| !(cfg!(windows) && OPTS[i].0 == Opt::Picker)).collect();
     // A section's groups fold away, for as long as Maia runs; the keys walk the rows
     // still out, and a search finds every option, folded or not.
     let fold_id = Id::new("options folded");

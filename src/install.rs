@@ -150,10 +150,17 @@ pub fn default_in(text: &str) -> Option<String> {
 }
 
 pub fn is_default() -> bool {
+    if cfg!(all(windows, not(test))) {
+        #[cfg(windows)]
+        return crate::shellfolder::is_default();
+    }
     current_default().as_deref() == Some(DESKTOP_ID)
 }
 
+#[cfg_attr(windows, allow(unreachable_code))]
 pub fn set_default() -> Result<String, String> {
+    #[cfg(all(windows, not(test)))]
+    return crate::shellfolder::set_default();
     #[cfg(not(test))]
     if !desktop_path().exists() {
         install()?;
@@ -172,7 +179,10 @@ pub fn set_default() -> Result<String, String> {
 
 /// Give folders back to the file manager used before Maia, else to another one that
 /// is installed.
+#[cfg_attr(windows, allow(unreachable_code))]
 pub fn unset_default() -> Result<String, String> {
+    #[cfg(all(windows, not(test)))]
+    return crate::shellfolder::unset_default();
     let prev = std::fs::read_to_string(crate::config::data_dir().join("previous-file-manager")).ok().map(|p| p.trim().to_string()).filter(|p| !p.is_empty() && p != DESKTOP_ID);
     let other = prev.or_else(|| crate::mime::apps().for_mime("inode/directory").into_iter().map(|a| a.id.clone()).find(|id| id != DESKTOP_ID));
     match other {
