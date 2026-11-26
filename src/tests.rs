@@ -3238,11 +3238,14 @@ fn git_history_reads_on_demand_and_stops() {
     assert_eq!(h.state().0, PAGE, "nothing more read until asked");
     let pid = h.git_pid();
     assert!(pid != 0 && std::path::Path::new(&format!("/proc/{pid}")).exists(), "git waits on its pipe");
+    // Its start time: a busy machine may give the number to a new process once git is reaped.
+    let started = |s: &str| s.rsplit(')').next().and_then(|r| r.split_whitespace().nth(19)).map(String::from);
+    let born = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok().and_then(|s| started(&s));
     h.more(&ctx);
     assert_eq!(wait(&mut h, 2 * PAGE), 2 * PAGE);
     drop(h);
     let t0 = Instant::now();
-    let gone = || std::fs::read_to_string(format!("/proc/{pid}/stat")).map_or(true, |s| s.split_whitespace().nth(2) == Some("Z"));
+    let gone = || std::fs::read_to_string(format!("/proc/{pid}/stat")).map_or(true, |s| s.rsplit(')').next().and_then(|r| r.split_whitespace().next()) == Some("Z") || started(&s) != born);
     while !gone() && t0.elapsed() < Duration::from_secs(5) {
         std::thread::sleep(Duration::from_millis(10));
     }

@@ -237,9 +237,12 @@ impl Scan {
                         }
                     });
                 }
+                // Found before its size is asked for: a size that came first would
+                // find no row and be lost, and the scan would never finish.
                 find(&root, &places, &st, &mut |f| {
-                    let _ = size_tx.send(f.path.clone());
+                    let path = f.path.clone();
                     let _ = tx.send(Msg::Found(f));
+                    let _ = size_tx.send(path);
                     ctx.request_repaint();
                 });
                 drop(size_tx);
